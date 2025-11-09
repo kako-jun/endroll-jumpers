@@ -3,7 +3,6 @@ import Phaser from 'phaser'
 export class MainScene extends Phaser.Scene {
   private player?: Phaser.Physics.Arcade.Sprite
   private spaceKey?: Phaser.Input.Keyboard.Key
-  private platforms?: Phaser.Physics.Arcade.StaticGroup
   private obstacles?: Phaser.Physics.Arcade.Group
   private score = 0
   private scoreText?: Phaser.GameObjects.Text
