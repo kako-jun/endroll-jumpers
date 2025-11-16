@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 
-export class MainScene extends Phaser.Scene {
+export class EndrollScene extends Phaser.Scene {
   private player?: Phaser.Physics.Arcade.Sprite
   private terrainBodies?: Phaser.Physics.Arcade.StaticGroup
   private cursors?: {
@@ -16,25 +16,30 @@ export class MainScene extends Phaser.Scene {
   private jumpButtonText?: Phaser.GameObjects.Text
 
   // スーパーマリオ1風の物理パラメータ
-  private maxMoveSpeed = 200 // 最大移動速度（慣性）
-  private acceleration = 20 // 加速度
-  private friction = 0.85 // 摩擦（速度減衰）
-  private airFriction = 0.95 // 空中摩擦（地上より滑りやすい）
+  private maxMoveSpeed = 200
+  private acceleration = 20
+  private friction = 0.85
+  private airFriction = 0.95
 
-  private jumpInitialVelocity = -400 // ジャンプ初速
-  private jumpHoldBoost = -8 // ボタン押し続け時の上昇力
-  private maxJumpTime = 300 // 最大ジャンプボタン押下時間（ミリ秒）
-  private maxFallSpeed = 400 // 最大落下速度
+  private jumpInitialVelocity = -400
+  private jumpHoldBoost = -8
+  private maxJumpTime = 300
+  private maxFallSpeed = 400
 
   private isOnGround = false
   private jumpStartTime = 0
   private isJumping = false
 
-  // 地形認識の閾値（0-255、この値以上の明るさを地形として認識）
+  // 地形認識の閾値
   private brightnessThreshold = 80
 
+  // エンドロール用パラメータ
+  private scrollSpeed = 50 // ピクセル/秒
+  private terrainHeight = 2400 // 縦長画像の高さ
+  private terrainImage?: Phaser.GameObjects.Image
+
   constructor() {
-    super({ key: 'MainScene' })
+    super({ key: 'EndrollScene' })
     this.cursors = {
       left: false,
       right: false,
@@ -43,150 +48,136 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // 地形画像を動的に生成
-    this.createTerrainTexture()
+    // エンドロール風の縦長地形画像を生成
+    this.createEndrollTexture()
   }
 
   create() {
-    // 背景色は設定ファイルで指定済み（黒）
+    // 背景色
+    this.cameras.main.setBackgroundColor('#000000')
 
-    // 地形画像をスプライトとして配置
-    this.add.image(400, 300, 'terrain')
+    // 縦長地形画像をスプライトとして配置（下部から開始）
+    this.terrainImage = this.add.image(400, this.terrainHeight / 2, 'endroll')
 
-    // 地形から白いピクセルを検出して物理ボディを作成
+    // 地形から明るいピクセルを検出して物理ボディを作成
     this.createTerrainBodies()
 
-    // プレイヤーを作成
+    // プレイヤーを作成（画面下部に配置）
     this.createPlayer()
 
     // モバイル用のコントロールボタンを作成
     this.createMobileControls()
 
     // キーボード入力
-    const keyboard = this.input.keyboard
-    if (keyboard) {
-      keyboard.on('keydown-LEFT', () => {
-        this.cursors!.left = true
-      })
-      keyboard.on('keyup-LEFT', () => {
-        this.cursors!.left = false
-      })
-      keyboard.on('keydown-RIGHT', () => {
-        this.cursors!.right = true
-      })
-      keyboard.on('keyup-RIGHT', () => {
-        this.cursors!.right = false
-      })
-      keyboard.on('keydown-SPACE', () => {
-        this.cursors!.jump = true
-      })
-      keyboard.on('keyup-SPACE', () => {
-        this.cursors!.jump = false
-      })
-      // Escapeキーでメニューに戻る
-      keyboard.on('keydown-ESC', () => {
-        this.scene.start('MenuScene')
-      })
-    }
+    this.setupKeyboard()
 
     // 衝突判定
     this.physics.add.collider(this.player!, this.terrainBodies!)
 
-    // メニューに戻るボタン
-    const menuButton = this.add.text(16, 16, 'ESC: メニュー', {
-      fontSize: '16px',
-      color: '#888888',
+    // タイトル表示
+    const titleText = this.add.text(400, 30, 'エンドロールモード', {
+      fontSize: '24px',
+      color: '#ffffff',
     })
-    menuButton.setDepth(1000)
-    menuButton.setInteractive({ useHandCursor: true })
-    menuButton.on('pointerover', () => {
-      menuButton.setColor('#ffffff')
-    })
-    menuButton.on('pointerout', () => {
-      menuButton.setColor('#888888')
-    })
-    menuButton.on('pointerdown', () => {
-      this.scene.start('MenuScene')
-    })
+    titleText.setOrigin(0.5)
+    titleText.setScrollFactor(0)
+    titleText.setDepth(1000)
   }
 
-  private createTerrainTexture() {
-    // 800x600の黒背景に白い線を描画
+  private createEndrollTexture() {
+    // 800x2400の縦長画像を生成
     const graphics = this.add.graphics()
 
     // 黒背景
     graphics.fillStyle(0x000000, 1)
-    graphics.fillRect(0, 0, 800, 600)
+    graphics.fillRect(0, 0, 800, this.terrainHeight)
 
-    // 白い線（プラットフォーム）を複数描画
-    graphics.fillStyle(0xffffff, 1)
+    // エンドロール風のテキストプラットフォームを配置
+    const texts = [
+      { text: 'ENDROLL JUMPERS', y: 2300, color: 0xffffff },
+      { text: 'PRESENTED BY', y: 2200, color: 0xcccccc },
+      { text: 'KAKO-JUN', y: 2100, color: 0xffffff },
+      { text: '', y: 2000, color: 0x000000 }, // 空白
+      { text: 'GAME DESIGN', y: 1900, color: 0xaaaaaa },
+      { text: 'CLAUDE & USER', y: 1800, color: 0xffffff },
+      { text: '', y: 1700, color: 0x000000 },
+      { text: 'PROGRAMMING', y: 1600, color: 0xaaaaaa },
+      { text: 'TYPESCRIPT', y: 1500, color: 0xcccccc },
+      { text: 'PHASER 3', y: 1400, color: 0xcccccc },
+      { text: '', y: 1300, color: 0x000000 },
+      { text: 'SPECIAL THANKS', y: 1200, color: 0xaaaaaa },
+      { text: 'SUPER MARIO BROS', y: 1100, color: 0x999999 },
+      { text: 'FOR JUMP PHYSICS', y: 1000, color: 0x999999 },
+      { text: '', y: 900, color: 0x000000 },
+      { text: 'THANK YOU', y: 800, color: 0xffffff },
+      { text: 'FOR PLAYING', y: 700, color: 0xffffff },
+      { text: '', y: 600, color: 0x000000 },
+      { text: '2025', y: 500, color: 0x888888 },
+      { text: '', y: 400, color: 0x000000 },
+      { text: 'JUMP TO CONTINUE', y: 300, color: 0xaaaaaa },
+      { text: '', y: 200, color: 0x000000 },
+      { text: 'THE END', y: 100, color: 0xffffff },
+    ]
 
-    // 地面
-    graphics.fillRect(0, 560, 800, 10)
+    // テキストごとにプラットフォームを描画
+    texts.forEach(item => {
+      if (item.text) {
+        graphics.fillStyle(item.color, 1)
+        // テキストの長さに応じた幅のプラットフォーム
+        const width = Math.min(item.text.length * 20, 700)
+        const x = 400 - width / 2
+        graphics.fillRect(x, item.y - 5, width, 10)
+      }
+    })
 
-    // 中段のプラットフォーム（左）- 白
-    graphics.fillRect(50, 450, 200, 10)
-
-    // 中段のプラットフォーム（中央）- 灰色（明るい）
-    graphics.fillStyle(0xcccccc, 1)
-    graphics.fillRect(300, 400, 150, 10)
-
-    // 中段のプラットフォーム（右）- 白
-    graphics.fillStyle(0xffffff, 1)
-    graphics.fillRect(550, 450, 200, 10)
-
-    // 高いプラットフォーム（左）- 灰色（中程度）
+    // 追加のプラットフォーム（ジャンプで渡る用）
     graphics.fillStyle(0x999999, 1)
-    graphics.fillRect(100, 300, 120, 10)
-
-    // 高いプラットフォーム（右）- 白
-    graphics.fillStyle(0xffffff, 1)
-    graphics.fillRect(500, 280, 150, 10)
-
-    // 最上段のプラットフォーム - 灰色（やや暗い）
-    graphics.fillStyle(0x888888, 1)
-    graphics.fillRect(250, 180, 300, 10)
-
-    // 斜めの線（坂道風）- 白
-    graphics.fillStyle(0xffffff, 1)
-    graphics.fillRect(0, 500, 150, 10)
-    graphics.fillRect(150, 480, 100, 10)
-
-    // テキスト風のプラットフォーム（文字認識テスト用）
-    graphics.fillStyle(0xaaaaaa, 1)
-    graphics.fillRect(600, 350, 80, 8)
-    graphics.fillRect(350, 250, 100, 8)
+    graphics.fillRect(50, 1950, 100, 8)
+    graphics.fillRect(650, 1850, 100, 8)
+    graphics.fillRect(200, 1750, 120, 8)
+    graphics.fillRect(500, 1650, 150, 8)
+    graphics.fillRect(100, 1550, 100, 8)
+    graphics.fillRect(600, 1450, 120, 8)
+    graphics.fillRect(300, 1350, 100, 8)
+    graphics.fillRect(50, 1250, 100, 8)
+    graphics.fillRect(650, 1150, 100, 8)
+    graphics.fillRect(200, 1050, 100, 8)
+    graphics.fillRect(550, 950, 120, 8)
+    graphics.fillRect(150, 850, 100, 8)
+    graphics.fillRect(600, 750, 100, 8)
+    graphics.fillRect(250, 650, 100, 8)
+    graphics.fillRect(500, 550, 100, 8)
+    graphics.fillRect(100, 450, 100, 8)
+    graphics.fillRect(600, 350, 100, 8)
+    graphics.fillRect(300, 250, 100, 8)
+    graphics.fillRect(400, 150, 150, 8)
 
     // テクスチャとして保存
-    graphics.generateTexture('terrain', 800, 600)
+    graphics.generateTexture('endroll', 800, this.terrainHeight)
     graphics.destroy()
   }
 
   private createTerrainBodies() {
     this.terrainBodies = this.physics.add.staticGroup()
 
-    // 地形画像のピクセルデータを取得
-    const texture = this.textures.get('terrain')
+    const texture = this.textures.get('endroll')
     const source = texture.getSourceImage() as HTMLCanvasElement
     const canvas = document.createElement('canvas')
     canvas.width = 800
-    canvas.height = 600
+    canvas.height = this.terrainHeight
     const ctx = canvas.getContext('2d')!
     ctx.drawImage(source, 0, 0)
-    const imageData = ctx.getImageData(0, 0, 800, 600)
+    const imageData = ctx.getImageData(0, 0, 800, this.terrainHeight)
 
-    // 明るいピクセルをグループ化してプラットフォームを作成
-    // 灰色や文字も認識できるように明るさベースで判定
     const platforms: { x: number; y: number; width: number; height: number }[] =
       []
     const visited = new Set<string>()
 
-    // 明るさを計算する関数
     const getBrightness = (r: number, g: number, b: number): number => {
       return (r + g + b) / 3
     }
 
-    for (let y = 0; y < 600; y++) {
+    for (let y = 0; y < this.terrainHeight; y++) {
       for (let x = 0; x < 800; x++) {
         const key = `${x},${y}`
         if (visited.has(key)) continue
@@ -197,13 +188,9 @@ export class MainScene extends Phaser.Scene {
         const b = imageData.data[idx + 2]
         const brightness = getBrightness(r, g, b)
 
-        // 明るさが閾値以上なら地形として認識（白、灰色、文字など）
         if (brightness >= this.brightnessThreshold) {
-          // 水平方向に連続する明るいピクセルを探す
           let width = 0
-          let height = 0
 
-          // 幅を測定
           for (let w = x; w < 800; w++) {
             const wIdx = (y * 800 + w) * 4
             const wr = imageData.data[wIdx]
@@ -219,11 +206,9 @@ export class MainScene extends Phaser.Scene {
             }
           }
 
-          // 高さを測定（簡易版：1ピクセル行のみ）
-          height = 10 // 最小の高さ
+          const height = 10
 
           if (width > 2) {
-            // 幅が2ピクセル以上のものだけプラットフォームとして認識
             platforms.push({
               x: x + width / 2,
               y: y + height / 2,
@@ -235,7 +220,6 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    // プラットフォームごとに物理ボディを作成
     platforms.forEach(platform => {
       const body = this.terrainBodies!.create(
         platform.x,
@@ -249,19 +233,23 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createPlayer() {
-    // プレイヤー（水色の正方形）
-    this.player = this.physics.add.sprite(100, 100, '')
+    // プレイヤーを画面下部の中央に配置
+    this.player = this.physics.add.sprite(400, this.terrainHeight - 100, '')
     this.player.setDisplaySize(30, 30)
 
     const graphics = this.add.graphics()
     graphics.fillStyle(0x00ffff, 1)
-    graphics.fillRect(85, 85, 30, 30)
+    graphics.fillRect(385, this.terrainHeight - 115, 30, 30)
     graphics.setDepth(10)
 
     this.player.body!.setSize(30, 30)
     this.player.setBounce(0)
-    this.player.setCollideWorldBounds(true)
+    this.player.setCollideWorldBounds(false) // ワールド境界は無効（スクロールするため）
     this.player.setData('graphics', graphics)
+
+    // カメラをプレイヤーに追従
+    this.cameras.main.startFollow(this.player, false, 0.1, 0.1)
+    this.cameras.main.setBounds(0, 0, 800, this.terrainHeight)
   }
 
   private createMobileControls() {
@@ -388,16 +376,73 @@ export class MainScene extends Phaser.Scene {
     })
   }
 
-  update(time: number) {
+  private setupKeyboard() {
+    const keyboard = this.input.keyboard
+    if (keyboard) {
+      keyboard.on('keydown-LEFT', () => {
+        this.cursors!.left = true
+      })
+      keyboard.on('keyup-LEFT', () => {
+        this.cursors!.left = false
+      })
+      keyboard.on('keydown-RIGHT', () => {
+        this.cursors!.right = true
+      })
+      keyboard.on('keyup-RIGHT', () => {
+        this.cursors!.right = false
+      })
+      keyboard.on('keydown-SPACE', () => {
+        this.cursors!.jump = true
+      })
+      keyboard.on('keyup-SPACE', () => {
+        this.cursors!.jump = false
+      })
+      // Escapeキーでメニューに戻る
+      keyboard.on('keydown-ESC', () => {
+        this.scene.start('MenuScene')
+      })
+    }
+  }
+
+  update(time: number, delta: number) {
     if (!this.player) return
 
     const body = this.player.body as Phaser.Physics.Arcade.Body
+
+    // エンドロールの自動スクロール（画像を下に移動 = 上にスクロール）
+    if (this.terrainImage) {
+      this.terrainImage.y += (this.scrollSpeed * delta) / 1000
+    }
+
+    // 地形ボディも一緒に移動
+    this.terrainBodies?.children.entries.forEach(terrain => {
+      const t = terrain as Phaser.Physics.Arcade.Sprite
+      t.y += (this.scrollSpeed * delta) / 1000
+      t.refreshBody()
+    })
+
+    // プレイヤーグラフィックも一緒に移動（スクロールに合わせて）
+    const playerGraphics = this.player.getData('graphics')
+    if (playerGraphics) {
+      playerGraphics.y += (this.scrollSpeed * delta) / 1000
+    }
+
+    // エンドロールが終わったらメニューに戻る
+    if (this.terrainImage && this.terrainImage.y > this.terrainHeight + 300) {
+      this.scene.start('MenuScene')
+      return
+    }
+
+    // プレイヤーが画面外（下）に落ちたらリスタート
+    if (this.player.y > this.terrainHeight + 100) {
+      this.scene.restart()
+      return
+    }
 
     // 地面判定
     const wasOnGround = this.isOnGround
     this.isOnGround = body.touching.down || body.blocked.down
 
-    // 地面に着地した瞬間
     if (this.isOnGround && !wasOnGround) {
       this.isJumping = false
     }
@@ -406,17 +451,13 @@ export class MainScene extends Phaser.Scene {
     const currentFriction = this.isOnGround ? this.friction : this.airFriction
 
     if (this.cursors!.left) {
-      // 左方向の加速
       const newVelocityX = body.velocity.x - this.acceleration
       this.player.setVelocityX(Math.max(newVelocityX, -this.maxMoveSpeed))
     } else if (this.cursors!.right) {
-      // 右方向の加速
       const newVelocityX = body.velocity.x + this.acceleration
       this.player.setVelocityX(Math.min(newVelocityX, this.maxMoveSpeed))
     } else {
-      // 何も押していない場合は摩擦で減速
       this.player.setVelocityX(body.velocity.x * currentFriction)
-      // 速度が非常に小さい場合は完全に停止
       if (Math.abs(body.velocity.x) < 1) {
         this.player.setVelocityX(0)
       }
@@ -425,22 +466,16 @@ export class MainScene extends Phaser.Scene {
     // スーパーマリオ1風のジャンプ
     if (this.cursors!.jump) {
       if (this.isOnGround && !this.isJumping) {
-        // ジャンプ開始
         this.player.setVelocityY(this.jumpInitialVelocity)
         this.isJumping = true
         this.jumpStartTime = time
       } else if (this.isJumping) {
-        // ボタンを押し続けている間、上昇力を加える
         const jumpDuration = time - this.jumpStartTime
-        if (
-          jumpDuration < this.maxJumpTime &&
-          body.velocity.y < 0 // 上昇中のみ
-        ) {
+        if (jumpDuration < this.maxJumpTime && body.velocity.y < 0) {
           this.player.setVelocityY(body.velocity.y + this.jumpHoldBoost)
         }
       }
     } else {
-      // ジャンプボタンを離したら上昇を弱める
       if (this.isJumping && body.velocity.y < 0) {
         this.player.setVelocityY(body.velocity.y * 0.6)
       }
@@ -453,7 +488,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     // プレイヤーのグラフィックスを更新
-    const playerGraphics = this.player.getData('graphics')
     if (playerGraphics && this.player) {
       playerGraphics.clear()
       playerGraphics.fillStyle(0x00ffff, 1)
