@@ -14,9 +14,24 @@ export class MainScene extends Phaser.Scene {
   private leftButtonText?: Phaser.GameObjects.Text
   private rightButtonText?: Phaser.GameObjects.Text
   private jumpButtonText?: Phaser.GameObjects.Text
-  private moveSpeed = 200
-  private jumpPower = -500
+
+  // スーパーマリオ1風の物理パラメータ
+  private maxMoveSpeed = 200 // 最大移動速度（慣性）
+  private acceleration = 20 // 加速度
+  private friction = 0.85 // 摩擦（速度減衰）
+  private airFriction = 0.95 // 空中摩擦（地上より滑りやすい）
+
+  private jumpInitialVelocity = -400 // ジャンプ初速
+  private jumpHoldBoost = -8 // ボタン押し続け時の上昇力
+  private maxJumpTime = 300 // 最大ジャンプボタン押下時間（ミリ秒）
+  private maxFallSpeed = 400 // 最大落下速度
+
   private isOnGround = false
+  private jumpStartTime = 0
+  private isJumping = false
+
+  // 地形認識の閾値（0-255、この値以上の明るさを地形として認識）
+  private brightnessThreshold = 80
 
   constructor() {
     super({ key: 'MainScene' })
@@ -63,10 +78,7 @@ export class MainScene extends Phaser.Scene {
         this.cursors!.right = false
       })
       keyboard.on('keydown-SPACE', () => {
-        // ジャンプは1回のキー押下で1回だけ実行
-        if (!this.cursors!.jump) {
-          this.cursors!.jump = true
-        }
+        this.cursors!.jump = true
       })
       keyboard.on('keyup-SPACE', () => {
         this.cursors!.jump = false
@@ -91,27 +103,38 @@ export class MainScene extends Phaser.Scene {
     // 地面
     graphics.fillRect(0, 560, 800, 10)
 
-    // 中段のプラットフォーム（左）
+    // 中段のプラットフォーム（左）- 白
     graphics.fillRect(50, 450, 200, 10)
 
-    // 中段のプラットフォーム（中央）
+    // 中段のプラットフォーム（中央）- 灰色（明るい）
+    graphics.fillStyle(0xcccccc, 1)
     graphics.fillRect(300, 400, 150, 10)
 
-    // 中段のプラットフォーム（右）
+    // 中段のプラットフォーム（右）- 白
+    graphics.fillStyle(0xffffff, 1)
     graphics.fillRect(550, 450, 200, 10)
 
-    // 高いプラットフォーム（左）
+    // 高いプラットフォーム（左）- 灰色（中程度）
+    graphics.fillStyle(0x999999, 1)
     graphics.fillRect(100, 300, 120, 10)
 
-    // 高いプラットフォーム（右）
+    // 高いプラットフォーム（右）- 白
+    graphics.fillStyle(0xffffff, 1)
     graphics.fillRect(500, 280, 150, 10)
 
-    // 最上段のプラットフォーム
+    // 最上段のプラットフォーム - 灰色（やや暗い）
+    graphics.fillStyle(0x888888, 1)
     graphics.fillRect(250, 180, 300, 10)
 
-    // 斜めの線（坂道風）
+    // 斜めの線（坂道風）- 白
+    graphics.fillStyle(0xffffff, 1)
     graphics.fillRect(0, 500, 150, 10)
     graphics.fillRect(150, 480, 100, 10)
+
+    // テキスト風のプラットフォーム（文字認識テスト用）
+    graphics.fillStyle(0xaaaaaa, 1)
+    graphics.fillRect(600, 350, 80, 8)
+    graphics.fillRect(350, 250, 100, 8)
 
     // テクスチャとして保存
     graphics.generateTexture('terrain', 800, 600)
@@ -131,10 +154,16 @@ export class MainScene extends Phaser.Scene {
     ctx.drawImage(source, 0, 0)
     const imageData = ctx.getImageData(0, 0, 800, 600)
 
-    // 白いピクセルをグループ化してプラットフォームを作成
+    // 明るいピクセルをグループ化してプラットフォームを作成
+    // 灰色や文字も認識できるように明るさベースで判定
     const platforms: { x: number; y: number; width: number; height: number }[] =
       []
     const visited = new Set<string>()
+
+    // 明るさを計算する関数
+    const getBrightness = (r: number, g: number, b: number): number => {
+      return (r + g + b) / 3
+    }
 
     for (let y = 0; y < 600; y++) {
       for (let x = 0; x < 800; x++) {
@@ -145,10 +174,11 @@ export class MainScene extends Phaser.Scene {
         const r = imageData.data[idx]
         const g = imageData.data[idx + 1]
         const b = imageData.data[idx + 2]
+        const brightness = getBrightness(r, g, b)
 
-        // 白いピクセルを検出（閾値 > 200）
-        if (r > 200 && g > 200 && b > 200) {
-          // 水平方向に連続する白いピクセルを探す
+        // 明るさが閾値以上なら地形として認識（白、灰色、文字など）
+        if (brightness >= this.brightnessThreshold) {
+          // 水平方向に連続する明るいピクセルを探す
           let width = 0
           let height = 0
 
@@ -158,7 +188,9 @@ export class MainScene extends Phaser.Scene {
             const wr = imageData.data[wIdx]
             const wg = imageData.data[wIdx + 1]
             const wb = imageData.data[wIdx + 2]
-            if (wr > 200 && wg > 200 && wb > 200) {
+            const wBrightness = getBrightness(wr, wg, wb)
+
+            if (wBrightness >= this.brightnessThreshold) {
               width++
               visited.add(`${w},${y}`)
             } else {
@@ -322,10 +354,7 @@ export class MainScene extends Phaser.Scene {
     })
 
     this.jumpButton.on('pointerdown', () => {
-      // ジャンプは1回のタップで1回だけ実行
-      if (!this.cursors!.jump) {
-        this.cursors!.jump = true
-      }
+      this.cursors!.jump = true
       this.jumpButton!.setFillStyle(0x666666, 0.9)
     })
     this.jumpButton.on('pointerup', () => {
@@ -338,28 +367,68 @@ export class MainScene extends Phaser.Scene {
     })
   }
 
-  update() {
+  update(time: number) {
     if (!this.player) return
 
     const body = this.player.body as Phaser.Physics.Arcade.Body
 
     // 地面判定
+    const wasOnGround = this.isOnGround
     this.isOnGround = body.touching.down || body.blocked.down
 
-    // 左右移動
-    if (this.cursors!.left) {
-      this.player.setVelocityX(-this.moveSpeed)
-    } else if (this.cursors!.right) {
-      this.player.setVelocityX(this.moveSpeed)
-    } else {
-      this.player.setVelocityX(0)
+    // 地面に着地した瞬間
+    if (this.isOnGround && !wasOnGround) {
+      this.isJumping = false
     }
 
-    // ジャンプ（ワンショット入力として扱う）
-    if (this.cursors!.jump && this.isOnGround) {
-      this.player.setVelocityY(this.jumpPower)
-      // ジャンプ後はフラグをリセット（連続ジャンプを防ぐ）
-      this.cursors!.jump = false
+    // スーパーマリオ1風の左右移動
+    const currentFriction = this.isOnGround ? this.friction : this.airFriction
+
+    if (this.cursors!.left) {
+      // 左方向の加速
+      const newVelocityX = body.velocity.x - this.acceleration
+      this.player.setVelocityX(Math.max(newVelocityX, -this.maxMoveSpeed))
+    } else if (this.cursors!.right) {
+      // 右方向の加速
+      const newVelocityX = body.velocity.x + this.acceleration
+      this.player.setVelocityX(Math.min(newVelocityX, this.maxMoveSpeed))
+    } else {
+      // 何も押していない場合は摩擦で減速
+      this.player.setVelocityX(body.velocity.x * currentFriction)
+      // 速度が非常に小さい場合は完全に停止
+      if (Math.abs(body.velocity.x) < 1) {
+        this.player.setVelocityX(0)
+      }
+    }
+
+    // スーパーマリオ1風のジャンプ
+    if (this.cursors!.jump) {
+      if (this.isOnGround && !this.isJumping) {
+        // ジャンプ開始
+        this.player.setVelocityY(this.jumpInitialVelocity)
+        this.isJumping = true
+        this.jumpStartTime = time
+      } else if (this.isJumping) {
+        // ボタンを押し続けている間、上昇力を加える
+        const jumpDuration = time - this.jumpStartTime
+        if (
+          jumpDuration < this.maxJumpTime &&
+          body.velocity.y < 0 // 上昇中のみ
+        ) {
+          this.player.setVelocityY(body.velocity.y + this.jumpHoldBoost)
+        }
+      }
+    } else {
+      // ジャンプボタンを離したら上昇を弱める
+      if (this.isJumping && body.velocity.y < 0) {
+        this.player.setVelocityY(body.velocity.y * 0.6)
+      }
+      this.isJumping = false
+    }
+
+    // 最大落下速度の制限
+    if (body.velocity.y > this.maxFallSpeed) {
+      this.player.setVelocityY(this.maxFallSpeed)
     }
 
     // プレイヤーのグラフィックスを更新
