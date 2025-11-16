@@ -2,277 +2,372 @@ import Phaser from 'phaser'
 
 export class MainScene extends Phaser.Scene {
   private player?: Phaser.Physics.Arcade.Sprite
-  private spaceKey?: Phaser.Input.Keyboard.Key
-  private obstacles?: Phaser.Physics.Arcade.Group
-  private score = 0
-  private scoreText?: Phaser.GameObjects.Text
-  private gameOver = false
-  private obstacleTimer?: Phaser.Time.TimerEvent
-  private instructionText?: Phaser.GameObjects.Text
-  private ground?: Phaser.Physics.Arcade.Sprite
-  private scrollSpeed = 200
-  private jumpCount = 0
-  private maxJumps = 2 // ダブルジャンプ可能
+  private terrainBodies?: Phaser.Physics.Arcade.StaticGroup
+  private cursors?: {
+    left: boolean
+    right: boolean
+    jump: boolean
+  }
+  private leftButton?: Phaser.GameObjects.Rectangle
+  private rightButton?: Phaser.GameObjects.Rectangle
+  private jumpButton?: Phaser.GameObjects.Rectangle
+  private leftButtonText?: Phaser.GameObjects.Text
+  private rightButtonText?: Phaser.GameObjects.Text
+  private jumpButtonText?: Phaser.GameObjects.Text
+  private moveSpeed = 200
+  private jumpPower = -500
+  private isOnGround = false
 
   constructor() {
     super({ key: 'MainScene' })
+    this.cursors = {
+      left: false,
+      right: false,
+      jump: false,
+    }
   }
 
   preload() {
-    // アセットがないので、スキップ
+    // 地形画像を動的に生成
+    this.createTerrainTexture()
   }
 
   create() {
     // 背景色は設定ファイルで指定済み（黒）
 
-    // 地面を作成
-    this.createGround()
+    // 地形画像をスプライトとして配置
+    this.add.image(400, 300, 'terrain')
+
+    // 地形から白いピクセルを検出して物理ボディを作成
+    this.createTerrainBodies()
 
     // プレイヤーを作成
     this.createPlayer()
 
-    // 障害物グループを作成
-    this.createObstacles()
-
-    // スコア表示（距離）
-    this.scoreText = this.add.text(16, 16, '距離: 0', {
-      fontSize: '24px',
-      color: '#ffffff',
-    })
-    this.scoreText.setDepth(100)
-
-    // 操作説明
-    this.instructionText = this.add.text(
-      400,
-      16,
-      '操作: スペースキーまたはタップでジャンプ（2段ジャンプ可能）',
-      {
-        fontSize: '16px',
-        color: '#aaaaaa',
-      }
-    )
-    this.instructionText.setOrigin(0.5, 0)
-    this.instructionText.setDepth(100)
+    // モバイル用のコントロールボタンを作成
+    this.createMobileControls()
 
     // キーボード入力
-    this.spaceKey = this.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE
-    )
-
-    // タッチ/クリック入力
-    this.input.on('pointerdown', this.handlePointerDown, this)
+    const keyboard = this.input.keyboard
+    if (keyboard) {
+      keyboard.on('keydown-LEFT', () => {
+        this.cursors!.left = true
+      })
+      keyboard.on('keyup-LEFT', () => {
+        this.cursors!.left = false
+      })
+      keyboard.on('keydown-RIGHT', () => {
+        this.cursors!.right = true
+      })
+      keyboard.on('keyup-RIGHT', () => {
+        this.cursors!.right = false
+      })
+      keyboard.on('keydown-SPACE', () => {
+        // ジャンプは1回のキー押下で1回だけ実行
+        if (!this.cursors!.jump) {
+          this.cursors!.jump = true
+        }
+      })
+      keyboard.on('keyup-SPACE', () => {
+        this.cursors!.jump = false
+      })
+    }
 
     // 衝突判定
-    this.physics.add.collider(this.player!, this.ground!)
-    this.physics.add.overlap(
-      this.player!,
-      this.obstacles!,
-      this.hitObstacle as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
-      undefined,
-      this
-    )
-
-    // 障害物を定期的にスポーン
-    this.obstacleTimer = this.time.addEvent({
-      delay: 2000, // 2秒ごと
-      callback: this.spawnObstacle,
-      callbackScope: this,
-      loop: true,
-    })
-
-    // スコア更新
-    this.time.addEvent({
-      delay: 100,
-      callback: () => {
-        if (!this.gameOver) {
-          this.score += 1
-          this.scoreText?.setText('距離: ' + this.score)
-        }
-      },
-      callbackScope: this,
-      loop: true,
-    })
+    this.physics.add.collider(this.player!, this.terrainBodies!)
   }
 
-  private createGround() {
-    // 地面（緑の長方形）
-    this.ground = this.physics.add.staticSprite(400, 580, '')
-    this.ground.setDisplaySize(800, 40)
-    this.ground.body!.updateFromGameObject()
-
+  private createTerrainTexture() {
+    // 800x600の黒背景に白い線を描画
     const graphics = this.add.graphics()
-    graphics.fillStyle(0x00ff00, 1)
-    graphics.fillRect(0, 560, 800, 40)
-    graphics.setDepth(1)
+
+    // 黒背景
+    graphics.fillStyle(0x000000, 1)
+    graphics.fillRect(0, 0, 800, 600)
+
+    // 白い線（プラットフォーム）を複数描画
+    graphics.fillStyle(0xffffff, 1)
+
+    // 地面
+    graphics.fillRect(0, 560, 800, 10)
+
+    // 中段のプラットフォーム（左）
+    graphics.fillRect(50, 450, 200, 10)
+
+    // 中段のプラットフォーム（中央）
+    graphics.fillRect(300, 400, 150, 10)
+
+    // 中段のプラットフォーム（右）
+    graphics.fillRect(550, 450, 200, 10)
+
+    // 高いプラットフォーム（左）
+    graphics.fillRect(100, 300, 120, 10)
+
+    // 高いプラットフォーム（右）
+    graphics.fillRect(500, 280, 150, 10)
+
+    // 最上段のプラットフォーム
+    graphics.fillRect(250, 180, 300, 10)
+
+    // 斜めの線（坂道風）
+    graphics.fillRect(0, 500, 150, 10)
+    graphics.fillRect(150, 480, 100, 10)
+
+    // テクスチャとして保存
+    graphics.generateTexture('terrain', 800, 600)
+    graphics.destroy()
+  }
+
+  private createTerrainBodies() {
+    this.terrainBodies = this.physics.add.staticGroup()
+
+    // 地形画像のピクセルデータを取得
+    const texture = this.textures.get('terrain')
+    const source = texture.getSourceImage() as HTMLCanvasElement
+    const canvas = document.createElement('canvas')
+    canvas.width = 800
+    canvas.height = 600
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(source, 0, 0)
+    const imageData = ctx.getImageData(0, 0, 800, 600)
+
+    // 白いピクセルをグループ化してプラットフォームを作成
+    const platforms: { x: number; y: number; width: number; height: number }[] =
+      []
+    const visited = new Set<string>()
+
+    for (let y = 0; y < 600; y++) {
+      for (let x = 0; x < 800; x++) {
+        const key = `${x},${y}`
+        if (visited.has(key)) continue
+
+        const idx = (y * 800 + x) * 4
+        const r = imageData.data[idx]
+        const g = imageData.data[idx + 1]
+        const b = imageData.data[idx + 2]
+
+        // 白いピクセルを検出（閾値 > 200）
+        if (r > 200 && g > 200 && b > 200) {
+          // 水平方向に連続する白いピクセルを探す
+          let width = 0
+          let height = 0
+
+          // 幅を測定
+          for (let w = x; w < 800; w++) {
+            const wIdx = (y * 800 + w) * 4
+            const wr = imageData.data[wIdx]
+            const wg = imageData.data[wIdx + 1]
+            const wb = imageData.data[wIdx + 2]
+            if (wr > 200 && wg > 200 && wb > 200) {
+              width++
+              visited.add(`${w},${y}`)
+            } else {
+              break
+            }
+          }
+
+          // 高さを測定（簡易版：1ピクセル行のみ）
+          height = 10 // 最小の高さ
+
+          if (width > 2) {
+            // 幅が2ピクセル以上のものだけプラットフォームとして認識
+            platforms.push({
+              x: x + width / 2,
+              y: y + height / 2,
+              width,
+              height,
+            })
+          }
+        }
+      }
+    }
+
+    // プラットフォームごとに物理ボディを作成
+    platforms.forEach(platform => {
+      const body = this.terrainBodies!.create(
+        platform.x,
+        platform.y,
+        ''
+      ) as Phaser.Physics.Arcade.Sprite
+      body.setSize(platform.width, platform.height)
+      body.setDisplaySize(platform.width, platform.height)
+      body.refreshBody()
+    })
   }
 
   private createPlayer() {
     // プレイヤー（水色の正方形）
-    this.player = this.physics.add.sprite(150, 520, '')
+    this.player = this.physics.add.sprite(100, 100, '')
     this.player.setDisplaySize(30, 30)
 
     const graphics = this.add.graphics()
     graphics.fillStyle(0x00ffff, 1)
-    graphics.fillRect(135, 505, 30, 30)
+    graphics.fillRect(85, 85, 30, 30)
     graphics.setDepth(10)
 
     this.player.body!.setSize(30, 30)
     this.player.setBounce(0)
+    this.player.setCollideWorldBounds(true)
     this.player.setData('graphics', graphics)
   }
 
-  private createObstacles() {
-    this.obstacles = this.physics.add.group()
-  }
+  private createMobileControls() {
+    const buttonSize = 60
+    const buttonMargin = 20
+    const buttonY = 600 - buttonMargin - buttonSize / 2
 
-  private spawnObstacle() {
-    if (this.gameOver) return
+    // 左ボタン
+    this.leftButton = this.add.rectangle(
+      800 - buttonMargin * 3 - buttonSize * 2.5,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x333333,
+      0.7
+    )
+    this.leftButton.setInteractive()
+    this.leftButton.setDepth(1000)
+    this.leftButton.setScrollFactor(0)
 
-    // ランダムな高さの障害物（赤い長方形）
-    const height = Phaser.Math.Between(30, 80)
-    const obstacle = this.obstacles!.create(850, 560 - height / 2, '')
-
-    const graphics = this.add.graphics()
-    graphics.fillStyle(0xff0000, 1)
-    graphics.fillRect(850 - 15, 560 - height, 30, height)
-    graphics.setDepth(5)
-
-    obstacle.setDisplaySize(30, height)
-    obstacle.body.setSize(30, height)
-    obstacle.setVelocityX(-this.scrollSpeed)
-    obstacle.setData('graphics', graphics)
-    obstacle.setData('height', height)
-
-    // ゲームが進むにつれてスピードアップ
-    if (this.score > 500 && this.scrollSpeed < 400) {
-      this.scrollSpeed += 20
-    }
-  }
-
-  private jump() {
-    if (this.gameOver) return
-
-    // 地面にいるか、2段ジャンプ以内なら跳べる
-    const onGround = this.player!.body!.touching.down
-    if (onGround) {
-      this.jumpCount = 0
-    }
-
-    if (this.jumpCount < this.maxJumps) {
-      this.player?.setVelocityY(-400)
-      this.jumpCount++
-    }
-  }
-
-  private hitObstacle() {
-    if (this.gameOver) return
-
-    this.gameOver = true
-
-    // プレイヤーを赤くする
-    const playerGraphics = this.player?.getData('graphics')
-    if (playerGraphics) {
-      playerGraphics.clear()
-      playerGraphics.fillStyle(0xff0000, 1)
-      playerGraphics.fillRect(
-        this.player!.x - 15,
-        this.player!.y - 15,
-        30,
-        30
-      )
-    }
-
-    this.player?.setVelocity(0, 0)
-
-    // 障害物のスポーンを停止
-    this.obstacleTimer?.destroy()
-
-    // 全ての障害物を停止
-    this.obstacles?.children.entries.forEach(obstacle => {
-      const o = obstacle as Phaser.Physics.Arcade.Sprite
-      o.setVelocityX(0)
-    })
-
-    // ゲームオーバー表示
-    const gameOverText = this.add.text(400, 300, 'GAME OVER', {
-      fontSize: '64px',
-      color: '#ff0000',
-    })
-    gameOverText.setOrigin(0.5)
-    gameOverText.setDepth(200)
-
-    const finalScoreText = this.add.text(
-      400,
-      370,
-      '到達距離: ' + this.score,
+    this.leftButtonText = this.add.text(
+      this.leftButton.x,
+      this.leftButton.y,
+      '←',
       {
         fontSize: '32px',
         color: '#ffffff',
       }
     )
-    finalScoreText.setOrigin(0.5)
-    finalScoreText.setDepth(200)
+    this.leftButtonText.setOrigin(0.5)
+    this.leftButtonText.setDepth(1001)
+    this.leftButtonText.setScrollFactor(0)
 
-    const restartText = this.add.text(
-      400,
-      420,
-      'クリックかタップで再スタート',
+    // 右ボタン
+    this.rightButton = this.add.rectangle(
+      800 - buttonMargin * 2 - buttonSize * 1.5,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x333333,
+      0.7
+    )
+    this.rightButton.setInteractive()
+    this.rightButton.setDepth(1000)
+    this.rightButton.setScrollFactor(0)
+
+    this.rightButtonText = this.add.text(
+      this.rightButton.x,
+      this.rightButton.y,
+      '→',
       {
-        fontSize: '24px',
+        fontSize: '32px',
         color: '#ffffff',
       }
     )
-    restartText.setOrigin(0.5)
-    restartText.setDepth(200)
+    this.rightButtonText.setOrigin(0.5)
+    this.rightButtonText.setDepth(1001)
+    this.rightButtonText.setScrollFactor(0)
 
-    // 再スタート処理
-    this.input.once('pointerdown', () => {
-      this.scene.restart()
+    // ジャンプボタン
+    this.jumpButton = this.add.rectangle(
+      800 - buttonMargin - buttonSize / 2,
+      buttonY,
+      buttonSize,
+      buttonSize,
+      0x333333,
+      0.7
+    )
+    this.jumpButton.setInteractive()
+    this.jumpButton.setDepth(1000)
+    this.jumpButton.setScrollFactor(0)
+
+    this.jumpButtonText = this.add.text(
+      this.jumpButton.x,
+      this.jumpButton.y,
+      '↑',
+      {
+        fontSize: '32px',
+        color: '#ffffff',
+      }
+    )
+    this.jumpButtonText.setOrigin(0.5)
+    this.jumpButtonText.setDepth(1001)
+    this.jumpButtonText.setScrollFactor(0)
+
+    // ボタンイベント
+    this.leftButton.on('pointerdown', () => {
+      this.cursors!.left = true
+      this.leftButton!.setFillStyle(0x666666, 0.9)
+    })
+    this.leftButton.on('pointerup', () => {
+      this.cursors!.left = false
+      this.leftButton!.setFillStyle(0x333333, 0.7)
+    })
+    this.leftButton.on('pointerout', () => {
+      this.cursors!.left = false
+      this.leftButton!.setFillStyle(0x333333, 0.7)
+    })
+
+    this.rightButton.on('pointerdown', () => {
+      this.cursors!.right = true
+      this.rightButton!.setFillStyle(0x666666, 0.9)
+    })
+    this.rightButton.on('pointerup', () => {
+      this.cursors!.right = false
+      this.rightButton!.setFillStyle(0x333333, 0.7)
+    })
+    this.rightButton.on('pointerout', () => {
+      this.cursors!.right = false
+      this.rightButton!.setFillStyle(0x333333, 0.7)
+    })
+
+    this.jumpButton.on('pointerdown', () => {
+      // ジャンプは1回のタップで1回だけ実行
+      if (!this.cursors!.jump) {
+        this.cursors!.jump = true
+      }
+      this.jumpButton!.setFillStyle(0x666666, 0.9)
+    })
+    this.jumpButton.on('pointerup', () => {
+      this.cursors!.jump = false
+      this.jumpButton!.setFillStyle(0x333333, 0.7)
+    })
+    this.jumpButton.on('pointerout', () => {
+      this.cursors!.jump = false
+      this.jumpButton!.setFillStyle(0x333333, 0.7)
     })
   }
 
   update() {
-    if (this.gameOver) return
+    if (!this.player) return
 
-    // ジャンプ処理
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey!)) {
-      this.jump()
+    const body = this.player.body as Phaser.Physics.Arcade.Body
+
+    // 地面判定
+    this.isOnGround = body.touching.down || body.blocked.down
+
+    // 左右移動
+    if (this.cursors!.left) {
+      this.player.setVelocityX(-this.moveSpeed)
+    } else if (this.cursors!.right) {
+      this.player.setVelocityX(this.moveSpeed)
+    } else {
+      this.player.setVelocityX(0)
+    }
+
+    // ジャンプ（ワンショット入力として扱う）
+    if (this.cursors!.jump && this.isOnGround) {
+      this.player.setVelocityY(this.jumpPower)
+      // ジャンプ後はフラグをリセット（連続ジャンプを防ぐ）
+      this.cursors!.jump = false
     }
 
     // プレイヤーのグラフィックスを更新
-    const playerGraphics = this.player?.getData('graphics')
+    const playerGraphics = this.player.getData('graphics')
     if (playerGraphics && this.player) {
       playerGraphics.clear()
       playerGraphics.fillStyle(0x00ffff, 1)
-      playerGraphics.fillRect(
-        this.player.x - 15,
-        this.player.y - 15,
-        30,
-        30
-      )
+      playerGraphics.fillRect(this.player.x - 15, this.player.y - 15, 30, 30)
     }
-
-    // 障害物のグラフィックスを更新と削除処理
-    this.obstacles?.children.entries.forEach(obstacle => {
-      const o = obstacle as Phaser.Physics.Arcade.Sprite
-      if (o.x < -50) {
-        const graphics = o.getData('graphics')
-        if (graphics) graphics.destroy()
-        o.destroy()
-      } else {
-        const graphics = o.getData('graphics')
-        const height = o.getData('height')
-        if (graphics) {
-          graphics.clear()
-          graphics.fillStyle(0xff0000, 1)
-          graphics.fillRect(o.x - 15, 560 - height, 30, height)
-        }
-      }
-    })
-  }
-
-  private handlePointerDown() {
-    if (this.gameOver) return
-    this.jump()
   }
 }
