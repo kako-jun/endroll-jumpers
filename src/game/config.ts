@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
+import { MenuScene } from './MenuScene'
 import { MainScene } from './MainScene'
+import { EndrollScene } from './EndrollScene'
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -14,5 +16,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [MainScene],
+  scene: [MenuScene, MainScene, EndrollScene],
 }
