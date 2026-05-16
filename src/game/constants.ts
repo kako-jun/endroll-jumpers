@@ -35,8 +35,14 @@ export const PLAYER = {
   // 横移動 (SMB3 実測)
   walkMaxSpeed: 120, // 2 px/F × 60
   dashMaxSpeed: 180, // 3 px/F × 60
-  walkAccel: 450, // 2 / 16F → 0.125 px/F² × 3600
-  dashAccel: 180, // 3 / 60F → 0.05 px/F² × 3600
+  // walkAccel: dumps/mario3/ の walk_right "F31:+2" を信じれば 2/31 px/F² = 232 px/sec²
+  // (notes の `歩き加速 16F` 表記は +1 px/F 到達時で、+2 px/F (= max) 到達は 31F)
+  walkAccel: 232,
+  // dashAccel: dash_right "F61:+3" → 3/60 px/F² = 180 px/sec²
+  // 注意: walkAccel > dashAccel は意図的。SMB3 実機ではダッシュは max 速度の上限が
+  // 高いだけで、加速度自体は歩きとほぼ同等 (むしろ僅かに遅い) であることが
+  // 実測 (16F で +1 vs 60F で +3 の比較) から読み取れる。
+  dashAccel: 180,
   // 逆方向入力時のスキッド加速度。dash 速度 +180 から -120 (= 6 px/F の差) を 30F で
   // 反転するので 6/30 = 0.2 px/F² → 720 px/sec²
   skidAccel: 720,

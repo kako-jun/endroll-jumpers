@@ -55,18 +55,25 @@ describe('stepPlayerPhysics (SMB3 実測値ベース)', () => {
     expect(p.velocity.x).toBeLessThanOrEqual(PLAYER.dashMaxSpeed)
   })
 
-  it('スキッド: 走行中に逆方向入力すると skidAccel で減速→反転', () => {
+  it('スキッド: 1F の逆入力で walkAccel より skidAccel の方が大きく減速', () => {
     const p = createInitialPlayerState(0, 0)
     p.isOnGround = true
     p.velocity.x = PLAYER.dashMaxSpeed
-    // 1 frame 逆入力
     stepPlayerPhysics(p, { ...baseInput, left: true }, FRAME)
-    const after1 = p.velocity.x
-    // 通常加速度 (walkAccel 450) で 1F なら -450/60 = -7.5 px/sec の変化
-    // skidAccel (720) なら -12 px/sec の変化
     const dropWithWalkAccel =
       PLAYER.dashMaxSpeed - (PLAYER.walkAccel * FRAME) / 1000
-    expect(after1).toBeLessThan(dropWithWalkAccel + 0.1) // skid の方が大きく減速
+    expect(p.velocity.x).toBeLessThan(dropWithWalkAccel)
+  })
+
+  it('スキッド: 30F 連続逆入力で dash 速度から完全反転する (実測 SMB3)', () => {
+    const p = createInitialPlayerState(0, 0)
+    p.isOnGround = true
+    p.velocity.x = PLAYER.dashMaxSpeed // +180
+    for (let i = 0; i < 30; i++) {
+      stepPlayerPhysics(p, { ...baseInput, left: true }, FRAME)
+    }
+    // 30F 後には負方向 (= 逆方向に反転完了) になっているべき
+    expect(p.velocity.x).toBeLessThan(0)
   })
 
   it('空中では摩擦が効かず慣性が保持される (airFriction=1)', () => {

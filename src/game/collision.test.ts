@@ -55,4 +55,33 @@ describe('resolveCollisions', () => {
     expect(p.velocity.x).toBe(0)
     expect(p.velocity.y).toBe(0)
   })
+
+  it('velocity.y=0 で床にめり込んでいるとき: 押し戻しの方向は velocity に依存するため、現状の実装は何もしない (既知挙動)', () => {
+    // スポーン位置で既に床と重なっている異常状態の検証。velocity.y=0 のため
+    // Y 軸の押し戻しは発動しない。このケースは現状仕様として明示的に許容している
+    // (スポーン位置の安全配置で防ぐべき問題)
+    const p = createInitialPlayerState(100, 510) // FLOOR (y=500) に既にめり込み
+    p.velocity.x = 0
+    p.velocity.y = 0
+    const result = resolveCollisions(p, 100, 510, [FLOOR])
+    expect(result.y).toBe(510) // 押し戻されない
+    expect(result.isOnGround).toBe(false) // velocity.y=0 では床判定が発動しない
+  })
+
+  it('プラットフォーム角への斜め突入: X→Y 分離方式の既知挙動', () => {
+    // 床の右上角に左下から飛び込むケース。X 軸は現在 Y で判定するため、
+    // player.y が床より上 (空中) の段階では床矩形と X-overlap しない。
+    // 結果として「壁ヒットせず床着地のみ」となる。これは X→Y 分離方式の
+    // 仕様であり、実機 SMB3 の「ブロック角に右から突っ込んでも横移動は維持」
+    // と偶然一致する。
+    const BLOCK = { x: 200, y: 400, width: 100, height: 50 }
+    const p = createInitialPlayerState(180, 380) // ブロックの左上、まだ空中
+    p.velocity.x = 100
+    p.velocity.y = 100 // 右下に移動
+    const result = resolveCollisions(p, 210, 400, [BLOCK])
+    // Y 軸で床着地のみ。X 軸は player.y=380 の段階で BLOCK と overlap しないので素通り
+    expect(result.isOnGround).toBe(true)
+    expect(result.hitWall).toBe(false)
+    expect(p.velocity.x).toBe(100) // X 速度は維持
+  })
 })

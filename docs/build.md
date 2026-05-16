@@ -26,4 +26,4 @@
 ## CI
 
 - Husky + lint-staged で pre-commit に ESLint + Prettier
-- GitHub Actions: `.github/workflows/` 配下 (移植直後でまだ未確認、デプロイ時に要点検)
+- GitHub Actions: `.github/workflows/deploy.yml` (main push で build → GitHub Pages デプロイ)。移植後の初回 push で実走確認する想定

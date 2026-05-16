@@ -14,13 +14,16 @@ export class App {
     this.input = new InputManager(app)
     this.app.ticker.add(ticker => {
       this.input.tick()
-      this.currentScene?.update(ticker.deltaMS)
+      // タブ非アクティブから戻ったとき deltaMS が数百〜数千 ms になり、
+      // 一発で画面外まで飛ぶ / すり抜ける問題を防ぐため 33ms (30fps 相当) で頭打ち。
+      const deltaMs = Math.min(ticker.deltaMS, 33)
+      this.currentScene?.update(deltaMs)
     })
   }
 
   async startMenu(): Promise<void> {
     const { MenuScene } = await import('./scenes/MenuScene')
-    this.replaceScene(new MenuScene(this))
+    this.replaceScene(new MenuScene())
   }
 
   async startPlatform(): Promise<void> {

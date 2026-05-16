@@ -17,6 +17,11 @@ const makeImageData = (
       data[idx + 3] = 255
     }
   }
+  // jsdom 環境では ImageData コンストラクタが使える
+  if (typeof ImageData !== 'undefined') {
+    return new ImageData(data, width, height)
+  }
+  // フォールバック (node 環境)
   return { data, width, height, colorSpace: 'srgb' } as ImageData
 }
 

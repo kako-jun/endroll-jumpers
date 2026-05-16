@@ -16,6 +16,8 @@ export interface InputState {
   jumpJustPressed: boolean
   run: boolean
   back: boolean
+  /** Esc が「今フレームで押し始められた」かどうか。シーン切替の edge トリガに使う */
+  backJustPressed: boolean
 }
 
 export class InputManager {
@@ -26,11 +28,13 @@ export class InputManager {
     jumpJustPressed: false,
     run: false,
     back: false,
+    backJustPressed: false,
   }
 
   private app: Application
   private overlay: Container | null = null
   private prevJump = false
+  private prevBack = false
 
   private keyDown = (ev: KeyboardEvent): void => {
     switch (ev.code) {
@@ -97,17 +101,20 @@ export class InputManager {
     overlay.eventMode = 'static'
     overlay.label = 'input-overlay'
 
-    const btnW = STAGE_WIDTH / 3
+    // STAGE_WIDTH / 3 が割り切れない場合があるので最後のボタンだけ残り全幅を取る
+    const btnW = Math.floor(STAGE_WIDTH / 3)
+    const btnWRight = STAGE_WIDTH - btnW * 2
     const btnH = 120
     const y = STAGE_HEIGHT - btnH
 
     const makeBtn = (
       x: number,
+      width: number,
       key: 'left' | 'right' | 'jump',
       fillColor: number
     ): void => {
       const g = new Graphics()
-      g.rect(0, 0, btnW, btnH).fill({ color: fillColor, alpha: 0.25 })
+      g.rect(0, 0, width, btnH).fill({ color: fillColor, alpha: 0.25 })
       g.x = x
       g.y = y
       g.eventMode = 'static'
@@ -131,9 +138,9 @@ export class InputManager {
       overlay.addChild(g)
     }
 
-    makeBtn(0, 'left', 0x4444aa)
-    makeBtn(btnW, 'jump', 0x44aa44)
-    makeBtn(btnW * 2, 'right', 0xaa4444)
+    makeBtn(0, btnW, 'left', 0x4444aa)
+    makeBtn(btnW, btnW, 'jump', 0x44aa44)
+    makeBtn(btnW * 2, btnWRight, 'right', 0xaa4444)
 
     this.app.stage.addChild(overlay)
     this.overlay = overlay
@@ -147,10 +154,12 @@ export class InputManager {
     }
   }
 
-  /** フレーム頭で呼ぶ。jumpJustPressed の計算 */
+  /** フレーム頭で呼ぶ。jumpJustPressed / backJustPressed の計算 */
   tick(): void {
     this.state.jumpJustPressed = this.state.jump && !this.prevJump
     this.prevJump = this.state.jump
+    this.state.backJustPressed = this.state.back && !this.prevBack
+    this.prevBack = this.state.back
   }
 
   destroy(): void {

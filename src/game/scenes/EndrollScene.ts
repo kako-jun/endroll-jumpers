@@ -108,7 +108,7 @@ export class EndrollScene extends Scene {
   }
 
   override update(deltaMs: number): void {
-    if (this.app.input.state.back) {
+    if (this.app.input.state.backJustPressed) {
       this.exit({ back: true })
       return
     }
