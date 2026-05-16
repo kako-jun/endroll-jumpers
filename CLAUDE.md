@@ -2,7 +2,7 @@
 
 画像から地形を自動認識するプラットフォームアクションゲーム。PixiJS v8 + TypeScript + Vite。
 
-旧 Phaser 版から PixiJS に移植中。旧コードは `reference/phaser-source/` に退避済み。
+旧 Phaser 版から PixiJS に移植済み。
 
 ## コンセプト
 
@@ -26,8 +26,6 @@ endroll-jumpers/
 │           ├── MenuScene.ts      # モード選択
 │           ├── PlatformScene.ts  # 固定画面モード
 │           └── EndrollScene.ts   # 縦スクロールモード
-├── reference/
-│   └── phaser-source/          # 移植元の Phaser 版（#12 で削除）
 └── package.json
 ```
 

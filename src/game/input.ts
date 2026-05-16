@@ -92,7 +92,6 @@ export class InputManager {
     const makeBtn = (
       x: number,
       key: 'left' | 'right' | 'jump',
-      label: string,
       fillColor: number
     ): void => {
       const g = new Graphics()
@@ -103,7 +102,6 @@ export class InputManager {
       g.cursor = 'pointer'
       g.label = `btn-${key}`
 
-      // 文字描画は別途。ここではヒット領域のみ
       const setDown = (): void => {
         this.state[key] = true
       }
@@ -119,12 +117,11 @@ export class InputManager {
       g.on('pointercancel', setUp)
 
       overlay.addChild(g)
-      void label
     }
 
-    makeBtn(0, 'left', '←', 0x4444aa)
-    makeBtn(btnW, 'jump', '↑', 0x44aa44)
-    makeBtn(btnW * 2, 'right', '→', 0xaa4444)
+    makeBtn(0, 'left', 0x4444aa)
+    makeBtn(btnW, 'jump', 0x44aa44)
+    makeBtn(btnW * 2, 'right', 0xaa4444)
 
     this.app.stage.addChild(overlay)
     this.overlay = overlay

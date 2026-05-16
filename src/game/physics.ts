@@ -14,7 +14,6 @@ export interface PhysicsInput {
   jumpJustPressed: boolean
 }
 
-const sign = (n: number): number => (n > 0 ? 1 : n < 0 ? -1 : 0)
 const clamp = (n: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, n))
 
@@ -79,8 +78,6 @@ export const stepPlayerPhysics = (
   if (player.velocity.y > PLAYER.maxFallSpeed) {
     player.velocity.y = PLAYER.maxFallSpeed
   }
-
-  void sign // 参照ヘルパー (未使用警告回避)
 }
 
 /** velocity を反映した次フレームの位置を計算。衝突解決は別途。 */
