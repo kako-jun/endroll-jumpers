@@ -41,4 +41,4 @@ overlap している rect があれば:
 
 ## テスト
 
-`src/game/collision.test.ts` に 5 ケース。
+`src/game/collision.test.ts` に 7 ケース (速度 0 でのめり込み既知挙動 / 角への斜め突入 を含む)。

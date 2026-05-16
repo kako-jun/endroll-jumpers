@@ -38,7 +38,7 @@ export const PLAYER = {
   // walkAccel: dumps/mario3/ の walk_right "F31:+2" を信じれば 2/31 px/F² = 232 px/sec²
   // (notes の `歩き加速 16F` 表記は +1 px/F 到達時で、+2 px/F (= max) 到達は 31F)
   walkAccel: 232,
-  // dashAccel: dash_right "F61:+3" → 3/60 px/F² = 180 px/sec²
+  // dashAccel: dash_right "F61:+3" → 3 px/F に到達まで 60F → 加速度 = 3 / 60 = 0.05 px/F² = 180 px/sec²
   // 注意: walkAccel > dashAccel は意図的。SMB3 実機ではダッシュは max 速度の上限が
   // 高いだけで、加速度自体は歩きとほぼ同等 (むしろ僅かに遅い) であることが
   // 実測 (16F で +1 vs 60F で +3 の比較) から読み取れる。

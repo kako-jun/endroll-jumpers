@@ -8,6 +8,9 @@ export class App {
   app: Application
   input: InputManager
   private currentScene: Scene | null = null
+  // 動的 import 中に別シーンへの遷移が走った場合、後勝ちで上書きされ
+  // 2 重 replaceScene が走るのを防ぐためのガード
+  private isTransitioning = false
 
   constructor(app: Application) {
     this.app = app
@@ -22,18 +25,36 @@ export class App {
   }
 
   async startMenu(): Promise<void> {
-    const { MenuScene } = await import('./scenes/MenuScene')
-    this.replaceScene(new MenuScene())
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+    try {
+      const { MenuScene } = await import('./scenes/MenuScene')
+      this.replaceScene(new MenuScene())
+    } finally {
+      this.isTransitioning = false
+    }
   }
 
   async startPlatform(): Promise<void> {
-    const { PlatformScene } = await import('./scenes/PlatformScene')
-    this.replaceScene(new PlatformScene(this))
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+    try {
+      const { PlatformScene } = await import('./scenes/PlatformScene')
+      this.replaceScene(new PlatformScene(this))
+    } finally {
+      this.isTransitioning = false
+    }
   }
 
   async startEndroll(): Promise<void> {
-    const { EndrollScene } = await import('./scenes/EndrollScene')
-    this.replaceScene(new EndrollScene(this))
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+    try {
+      const { EndrollScene } = await import('./scenes/EndrollScene')
+      this.replaceScene(new EndrollScene(this))
+    } finally {
+      this.isTransitioning = false
+    }
   }
 
   private replaceScene(scene: Scene): void {

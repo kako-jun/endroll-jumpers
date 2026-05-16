@@ -4,6 +4,10 @@
 // - 物理 → 衝突解決 → 表示反映 を毎フレーム実行
 
 import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
+
+// 地形 Canvas → Sprite で表示するため、シーン destroy 時に Texture も明示破棄する
+// (PixiJS v8 の Texture.from は Assets cache に登録されるため、シーン切替の度に
+//  リークするのを防ぐ)
 import { Scene } from '../Scene'
 import { App } from '../App'
 import { PLAYER, STAGE_HEIGHT, STAGE_WIDTH } from '../constants'
@@ -67,6 +71,7 @@ export class PlatformScene extends Scene {
   private playerGfx: Graphics
   private rects: CollisionRect[]
   private terrainLayer: Container
+  private terrainTexture: Texture
 
   constructor(app: App) {
     super()
@@ -82,7 +87,8 @@ export class PlatformScene extends Scene {
     const imageData = ctx.getImageData(0, 0, STAGE_WIDTH, STAGE_HEIGHT)
     this.rects = detectTerrain(imageData)
 
-    const terrainSprite = new Sprite(Texture.from(canvas))
+    this.terrainTexture = Texture.from(canvas)
+    const terrainSprite = new Sprite(this.terrainTexture)
     this.terrainLayer = new Container()
     this.terrainLayer.addChild(terrainSprite)
     this.addChild(this.terrainLayer)
@@ -159,6 +165,8 @@ export class PlatformScene extends Scene {
 
   override destroyScene(): void {
     this.app.input.detachTouchOverlay()
+    // GPU texture + source も明示破棄してリークを防ぐ
+    this.terrainTexture.destroy(true)
     super.destroyScene()
   }
 }

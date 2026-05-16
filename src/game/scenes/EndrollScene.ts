@@ -68,6 +68,7 @@ export class EndrollScene extends Scene {
   private playerGfx: Graphics
   private rects: CollisionRect[]
   private world: Container
+  private terrainTexture: Texture
   private cameraY: number = 0
 
   constructor(app: App) {
@@ -84,7 +85,9 @@ export class EndrollScene extends Scene {
     this.rects = detectTerrain(imageData)
 
     this.world = new Container()
-    const terrainSprite = new Sprite(Texture.from(canvas))
+    this.world.y = -this.cameraY // 初期状態を明示
+    this.terrainTexture = Texture.from(canvas)
+    const terrainSprite = new Sprite(this.terrainTexture)
     this.world.addChild(terrainSprite)
     this.addChild(this.world)
 
@@ -167,6 +170,8 @@ export class EndrollScene extends Scene {
 
   override destroyScene(): void {
     this.app.input.detachTouchOverlay()
+    // 大きい (800×2400) テクスチャなので GPU リソースを必ず解放
+    this.terrainTexture.destroy(true)
     super.destroyScene()
   }
 }

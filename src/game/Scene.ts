@@ -23,7 +23,8 @@ export class Scene extends Container {
   }
 
   destroyScene(): void {
-    this.removeChildren()
+    // destroy({ children: true }) が子要素を removeChild + destroy するので
+    // 事前の removeChildren() は不要 (PixiJS v8 仕様)。
     this.destroy({ children: true })
   }
 }

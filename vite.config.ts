@@ -1,5 +1,9 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 
+// vitest の設定もここに統合する (vitest は vite.config.ts を自動で読む)。
+// 別途 vitest.config.ts を持つと server.open 等が watch モードに漏れる懸念があるため、
+// 設定ファイルを 1 つに寄せる方針。
 export default defineConfig({
   base: '/endroll-jumpers/',
   server: {
@@ -9,5 +13,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+  },
+  test: {
+    environment: 'jsdom',
   },
 })

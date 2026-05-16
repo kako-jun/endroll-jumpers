@@ -67,12 +67,10 @@ export const stepPlayerPhysics = (
 
     player.velocity.x += accel * inputDir * dt
 
+    // !isReversing なので velocity.x の符号は inputDir と一致 (or 0)。
+    // 入力方向の上限のみ気にすればよいが、対称にクランプしても同じ結果
     if (!isReversing) {
-      if (inputDir > 0 && player.velocity.x > maxSpeed) {
-        player.velocity.x = maxSpeed
-      } else if (inputDir < 0 && player.velocity.x < -maxSpeed) {
-        player.velocity.x = -maxSpeed
-      }
+      player.velocity.x = clamp(player.velocity.x, -maxSpeed, maxSpeed)
     }
   } else {
     const baseFriction = onGround ? PLAYER.groundFriction : PLAYER.airFriction

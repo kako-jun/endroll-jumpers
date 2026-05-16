@@ -47,12 +47,12 @@ describe('stepPlayerPhysics (SMB3 実測値ベース)', () => {
     const p = createInitialPlayerState(0, 0)
     p.isOnGround = true
     p.velocity.x = PLAYER.walkMaxSpeed
-    // 数フレーム加速させる
+    // 60F × dashAccel (180 px/sec²) / 60fps = +180 加算 → walkMaxSpeed 120 + 180 = 300
+    // dashMaxSpeed=180 でクランプされるので最終的に 180 ちょうどに到達するはず
     for (let i = 0; i < 60; i++) {
       stepPlayerPhysics(p, { ...baseInput, right: true, runHeld: true }, FRAME)
     }
-    expect(p.velocity.x).toBeGreaterThan(PLAYER.walkMaxSpeed)
-    expect(p.velocity.x).toBeLessThanOrEqual(PLAYER.dashMaxSpeed)
+    expect(p.velocity.x).toBeCloseTo(PLAYER.dashMaxSpeed, 1)
   })
 
   it('スキッド: 1F の逆入力で walkAccel より skidAccel の方が大きく減速', () => {

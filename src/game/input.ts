@@ -101,9 +101,10 @@ export class InputManager {
     overlay.eventMode = 'static'
     overlay.label = 'input-overlay'
 
-    // STAGE_WIDTH / 3 が割り切れない場合があるので最後のボタンだけ残り全幅を取る
-    const btnW = Math.floor(STAGE_WIDTH / 3)
-    const btnWRight = STAGE_WIDTH - btnW * 2
+    // STAGE_WIDTH / 3 が割り切れない場合、誤差は中央ボタン (jump) に寄せて
+    // 左右ボタンの対称性を保つ
+    const btnSide = Math.floor(STAGE_WIDTH / 3)
+    const btnJump = STAGE_WIDTH - btnSide * 2
     const btnH = 120
     const y = STAGE_HEIGHT - btnH
 
@@ -138,9 +139,9 @@ export class InputManager {
       overlay.addChild(g)
     }
 
-    makeBtn(0, btnW, 'left', 0x4444aa)
-    makeBtn(btnW, btnW, 'jump', 0x44aa44)
-    makeBtn(btnW * 2, btnWRight, 'right', 0xaa4444)
+    makeBtn(0, btnSide, 'left', 0x4444aa)
+    makeBtn(btnSide, btnJump, 'jump', 0x44aa44)
+    makeBtn(btnSide + btnJump, btnSide, 'right', 0xaa4444)
 
     this.app.stage.addChild(overlay)
     this.overlay = overlay

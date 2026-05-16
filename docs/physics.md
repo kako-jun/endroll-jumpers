@@ -77,9 +77,10 @@ if (!onGround && !isReversing) accel *= airControl // 同方向の空中加速�
 - **走り速度連動ジャンプ高度** (高速ほど高く飛ぶ)
 - **one-way platform** (下から飛び乗れる床)
 - **スキッド専用アニメ** (現状は単に減速)
+- **ダッシュ離した直後の慣性減衰**: 現状は `Shift` を離した瞬間に `maxSpeed` クランプが `dashMaxSpeed (180)` から `walkMaxSpeed (120)` に切り替わるので、走行中に Shift を離すと急に減速する。SMB3 実機は離した後も慣性で 3 px/F の速度を維持して徐々に減速する。改善するなら「クランプ値を frame ごとに緩やかに maxSpeed へ補間」する処理が要る
 
 → 必要になったら別 Issue。
 
 ## テスト
 
-`src/game/physics.test.ts` に 18 ケース (実測ジャンプ高度 2 件 + スキッド 30F 完全反転 1 件を含む)。
+`src/game/physics.test.ts` に 19 ケース (実測ジャンプ高度 2 件 + スキッド 30F 完全反転 1 件 + integratePosition 1 件を含む)。
