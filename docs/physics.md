@@ -1,59 +1,75 @@
 # physics
 
-`src/game/physics.ts` に純関数として実装。`src/game/constants.ts` の `PLAYER` でパラメータを一元管理。
+`src/game/physics.ts` (純関数) と `src/game/constants.ts` のパラメータ。
 
-## 注意: マリオ3 完全再現ではない
+## SMB3 実機計測値をベースにしている
 
-「マリオ3 風の感触」を狙ったオリジナル実装。SMB3 ロムハック勢的な完全再現ではない。本物にあって**今は無い**もの:
+`repos/private/freeza/tools/nes-analysis/` で Mesen2 + Lua によって計測した SMB3 自機物理プロファイル (24 パターン) を 60fps の px/sec 系に換算して反映済み。実測サマリの正本は `dumps/mario3/SUMMARY.txt` / `dumps/mario3-block-hit/SUMMARY.txt` / `dumps/mario3-wall-hit/SUMMARY.txt`。
 
-- P メーター (走り続けて貯まる → 真の最高速度)
-- 走り速度に応じたジャンプ高度 (高速ほど高く飛ぶ)
-- スキッド (高速で逆方向入力時の専用減速 + 専用アニメ)
-- 上昇 / 下降で異なる重力テーブル、ボタン押下による落下重力分岐
-- サブピクセル位置 + 整数速度テーブル (0x18, 0x28 ...)
-- one-way platform (下から飛び乗れる床)
+実測値 → 換算 (1 px/F = 60 px/sec、1 px/F² = 3600 px/sec²)。
 
-→ 実装したい場合は別途 Issue 化して進める。
+| 項目                        | 実測 (px/F or F) | 換算後 (`constants.ts`)     |
+| --------------------------- | ---------------- | --------------------------- |
+| 歩き max 速度               | +2 px/F          | `walkMaxSpeed: 120`         |
+| ダッシュ max 速度           | +3 px/F          | `dashMaxSpeed: 180`         |
+| 歩き加速 (max まで)         | 16F              | `walkAccel: 450`            |
+| ダッシュ加速 (max まで)     | 60F              | `dashAccel: 180`            |
+| スキッド (dash→逆 完全反転) | 30F              | `skidAccel: 720`            |
+| ジャンプ初速                | -5 px/F          | `jumpInitialVelocity: -300` |
+| A 押下 max hold             | 30F              | `maxJumpHoldMs: 500`        |
+| 最大落下速度                | ~5.5 px/F        | `maxFallSpeed: 400`         |
 
-## 実装している要素
+## 上昇中の重力分岐 (短押し 21px / 長押し 71px の再現)
 
-### 可変ジャンプ
+`jumpHoldBoost` 方式 (押し続けで追加加速) ではなく、SMB3 の実際の挙動である**上昇中の重力の切替**を実装。
 
-- `jumpJustPressed && isOnGround` で `velocity.y = jumpInitialVelocity` (負値)
-- 上昇中 (`velocity.y < 0`) かつ `jumpHeld` の間、`jumpHoldMs` が `maxJumpHoldMs` に達するまで `jumpHoldBoost * dt` を加算
-- ボタン離す or 落下開始で `isJumping = false`
+- `velocity.y < 0` (上昇中) かつ A 押下 かつ `jumpHoldMs < maxJumpHoldMs` → 弱重力 `ASCENT_GRAVITY_HELD = 642`
+- 上記以外で上昇中 (A 離した or hold 上限超え) → 強重力 `ASCENT_GRAVITY_RELEASED = 2143`
+- 下降中 (`velocity.y >= 0`) → 通常重力 `GRAVITY = 800`
 
-### 空中制御
+数値の根拠:
 
-- `isOnGround === false` のとき加速度に `airControl` (0.6) を乗じる
-- 摩擦も `airFriction` (0.95) を採用
+- 初速 -300 px/sec で重力 642 → 頂点到達まで 300/642 = 0.467s = 28F、高度 300²/(2·642) ≈ **70.1px** ≒ 実測 71px ✓
+- 初速 -300 px/sec で重力 2143 → 頂点高度 300²/(2·2143) ≈ **21.0px** = 実測 21px ✓
+- 下降重力 800 で 71px 落下 → 終端速度 √(2·800·71) ≈ 337 px/sec ≒ 5.6 px/F、fall 約 25F = 実測値
 
-### 摩擦と慣性
+→ `physics.test.ts` の 2 ケースで実測値 ±20% 以内を検証。
 
-- 入力なしのときだけ `velocity.x *= friction^(dt * 60)` で減衰
-- 入力中は摩擦をかけない (加速のみ)
-- 速度の絶対値が 1 未満になったら `velocity.x = 0` にスナップ
+## スキッド (慣性反転)
 
-### クランプ
+入力方向が現在の `velocity.x` の符号と逆のとき、`walkAccel`/`dashAccel` ではなく `skidAccel = 720 px/sec²` を使う。実測「ダッシュ +180 から逆方向入力で 30F (500ms) かけて完全反転」をそのまま定数化。
 
-- `velocity.x` は `[-maxMoveSpeed, maxMoveSpeed]` にクランプ
-- `velocity.y` は上限 `maxFallSpeed` のみクランプ (上昇方向は無制限 = jumpHoldBoost の累積を妨げない)
+地上でも空中でも同じ skidAccel を使う。これによって SMB3 の**空中での着地点制御 (ダッシュジャンプ +79px ↔ 空中逆入力 +19px の -76% ブレーキ)** を再現する。
 
-## パラメータ (src/game/constants.ts)
+```ts
+const isReversing = sign(velocity.x) !== 0 && sign(velocity.x) !== inputDir
+accel = isReversing ? PLAYER.skidAccel : runHeld ? dashAccel : walkAccel
+if (!onGround && !isReversing) accel *= airControl // 同方向の空中加速だけ控えめに
+```
 
-| 変数                  | 値   | 意味                                  |
-| --------------------- | ---- | ------------------------------------- |
-| `GRAVITY`             | 1800 | px/s²                                 |
-| `maxMoveSpeed`        | 200  | px/s                                  |
-| `acceleration`        | 1200 | px/s²                                 |
-| `groundFriction`      | 0.85 | 1 frame (60fps 換算) あたりの減衰係数 |
-| `airFriction`         | 0.95 | 同上、空中                            |
-| `jumpInitialVelocity` | -520 | px/s                                  |
-| `jumpHoldBoost`       | -900 | px/s² (押し続け中)                    |
-| `maxJumpHoldMs`       | 280  | ms                                    |
-| `maxFallSpeed`        | 600  | px/s                                  |
-| `airControl`          | 0.6  | 空中の加速度倍率                      |
+## 摩擦
+
+- 地上で入力なし: `groundFriction = 0.92` を 1 フレーム (60fps) あたりの減衰係数として適用
+- 空中で入力なし: `airFriction = 1.0` (完全慣性、SMB3 実測通り)
+
+`Math.pow(base, dt * 60)` でフレームレート非依存にしている。
+
+## 走り (B ボタン相当)
+
+- キーボード: Shift / X
+- `InputManager.state.run`
+- 押下中は最高速度が `walkMaxSpeed (120)` から `dashMaxSpeed (180)` に拡大
+- 加速度も `walkAccel (450)` から `dashAccel (180)` に変わる (走りは加速が緩く、トップスピードまで時間がかかる)
+
+## SMB3 のまだ未実装な要素
+
+- **P メーター** (走り続けて貯まる "真の最高速度")
+- **走り速度連動ジャンプ高度** (高速ほど高く飛ぶ)
+- **one-way platform** (下から飛び乗れる床)
+- **スキッド専用アニメ** (現状は単に減速)
+
+→ 必要になったら別 Issue。
 
 ## テスト
 
-`src/game/physics.test.ts` に 10 ケース。
+`src/game/physics.test.ts` に 17 ケース (実測ジャンプ高度 2 件を含む)。

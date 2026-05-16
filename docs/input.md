@@ -9,6 +9,7 @@
 | `ArrowLeft` / `KeyA`         | 左移動 (`state.left`)   |
 | `ArrowRight` / `KeyD`        | 右移動 (`state.right`)  |
 | `Space` / `ArrowUp` / `KeyW` | ジャンプ (`state.jump`) |
+| `Shift` / `KeyX`             | ダッシュ (`state.run`)  |
 | `Escape`                     | バック (`state.back`)   |
 
 `window.addEventListener('keydown' | 'keyup')` で受ける。シーンを跨いで状態がリセットされない (= 押しっぱなしのままシーンが切り替わってもそのまま続く)。

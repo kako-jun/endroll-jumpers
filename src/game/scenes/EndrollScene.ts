@@ -121,6 +121,7 @@ export class EndrollScene extends Scene {
         right: input.right,
         jumpHeld: input.jump,
         jumpJustPressed: input.jumpJustPressed,
+        runHeld: input.run,
       },
       deltaMs
     )

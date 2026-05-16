@@ -98,7 +98,7 @@ export class PlatformScene extends Scene {
 
     // --- HUD ---
     const hint = new Text({
-      text: '← → 移動 / Space ジャンプ / Esc メニュー',
+      text: '← → 移動 / Shift ダッシュ / Space ジャンプ / Esc メニュー',
       style: HINT_STYLE,
     })
     hint.x = 12
@@ -123,6 +123,7 @@ export class PlatformScene extends Scene {
         right: input.right,
         jumpHeld: input.jump,
         jumpJustPressed: input.jumpJustPressed,
+        runHeld: input.run,
       },
       deltaMs
     )

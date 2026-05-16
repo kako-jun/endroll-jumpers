@@ -1,10 +1,21 @@
-// マリオ3 準拠の物理・移動を純関数として記述
-// - 可変ジャンプ (ボタン押し続けで上昇継続、maxJumpHoldMs で打ち切り)
-// - 空中制御 (airControl で左右入力倍率を下げる)
-// - 摩擦 (地上 / 空中で別係数)
-// - 最大落下速度 / 最大移動速度のクランプ
+// マリオ3 実機計測値ベースの物理。constants.ts 参照。
+//
+// 主な仕様 (freeza/tools/nes-analysis/dumps/mario3* の実測):
+// - 歩き max 120 / ダッシュ max 180 px/sec (runHeld で切替)
+// - 慣性反転は通常加速度ではなく skidAccel (720 px/sec²) を使い 30F (~500ms) で完全反転
+// - 空中の逆方向入力も skidAccel を使う (= 着地点制御の主軸 +79 ↔ +19px の再現)
+// - 空中の摩擦は 1.0 (慣性維持)、地上のみ groundFriction
+// - ジャンプ重力: 上昇中 A 押下 = ASCENT_GRAVITY_HELD (弱)、上昇中 A 解放 = ASCENT_GRAVITY_RELEASED (強)、下降中 = GRAVITY
+//   → 短押し 21px / 長押し 71px の 3.4 倍差 (実機 SMB3) を再現
+// - 下押し急降下は SMB3 には無いので採用しない
+// - 天井ヒットで velocity.y=0 リセット (collision.ts 側)、再上昇しない (上昇継続条件で velocity.y < 0 を要求)
 
-import { PLAYER, GRAVITY } from './constants'
+import {
+  ASCENT_GRAVITY_HELD,
+  ASCENT_GRAVITY_RELEASED,
+  GRAVITY,
+  PLAYER,
+} from './constants'
 import type { PlayerState } from './types'
 
 export interface PhysicsInput {
@@ -12,13 +23,16 @@ export interface PhysicsInput {
   right: boolean
   jumpHeld: boolean
   jumpJustPressed: boolean
+  runHeld: boolean
 }
 
 const clamp = (n: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, n))
 
+const sign = (n: number): -1 | 0 | 1 => (n > 0 ? 1 : n < 0 ? -1 : 0)
+
 /**
- * プレイヤーの速度を 1 フレーム分進める (位置は updatePosition で別途反映)。
+ * プレイヤーの速度を 1 フレーム分進める。位置反映は integratePosition で別途。
  * isOnGround は前フレームの衝突解決結果として渡される前提。
  */
 export const stepPlayerPhysics = (
@@ -30,54 +44,83 @@ export const stepPlayerPhysics = (
 
   // --- 左右入力 ---
   const inputDir = (input.right ? 1 : 0) - (input.left ? 1 : 0)
-  const controlFactor = player.isOnGround ? 1 : PLAYER.airControl
+  const onGround = player.isOnGround
+
+  const maxSpeed = input.runHeld ? PLAYER.dashMaxSpeed : PLAYER.walkMaxSpeed
 
   if (inputDir !== 0) {
-    player.velocity.x += PLAYER.acceleration * inputDir * controlFactor * dt
     player.facing = inputDir > 0 ? 1 : -1
+
+    const velSign = sign(player.velocity.x)
+    const isReversing = velSign !== 0 && velSign !== inputDir
+
+    let accel: number
+    if (isReversing) {
+      accel = PLAYER.skidAccel
+    } else {
+      accel = input.runHeld ? PLAYER.dashAccel : PLAYER.walkAccel
+    }
+
+    if (!onGround && !isReversing) {
+      accel *= PLAYER.airControl
+    }
+
+    player.velocity.x += accel * inputDir * dt
+
+    if (!isReversing) {
+      if (inputDir > 0 && player.velocity.x > maxSpeed) {
+        player.velocity.x = maxSpeed
+      } else if (inputDir < 0 && player.velocity.x < -maxSpeed) {
+        player.velocity.x = -maxSpeed
+      }
+    }
   } else {
-    // 摩擦 (係数を毎秒あたりに正規化)
-    const baseFriction = player.isOnGround
-      ? PLAYER.groundFriction
-      : PLAYER.airFriction
-    const frictionPerFrame = Math.pow(baseFriction, dt * 60)
-    player.velocity.x *= frictionPerFrame
-    if (Math.abs(player.velocity.x) < 1) player.velocity.x = 0
+    const baseFriction = onGround ? PLAYER.groundFriction : PLAYER.airFriction
+    if (baseFriction < 1) {
+      player.velocity.x *= Math.pow(baseFriction, dt * 60)
+      if (Math.abs(player.velocity.x) < 1) player.velocity.x = 0
+    }
   }
 
-  player.velocity.x = clamp(
-    player.velocity.x,
-    -PLAYER.maxMoveSpeed,
-    PLAYER.maxMoveSpeed
-  )
-
   // --- ジャンプ開始 ---
-  if (input.jumpJustPressed && player.isOnGround) {
+  if (input.jumpJustPressed && onGround) {
     player.velocity.y = PLAYER.jumpInitialVelocity
     player.isJumping = true
     player.jumpHoldMs = 0
     player.isOnGround = false
   }
 
-  // --- 可変ジャンプ (上昇中にボタン押下を継続すると追加加速) ---
-  if (
-    player.isJumping &&
-    input.jumpHeld &&
-    player.velocity.y < 0 &&
-    player.jumpHoldMs < PLAYER.maxJumpHoldMs
-  ) {
-    player.velocity.y += PLAYER.jumpHoldBoost * dt
-    player.jumpHoldMs += deltaMs
-  } else if (!input.jumpHeld || player.velocity.y >= 0) {
-    // ボタン離した or 落下開始 → 可変ジャンプ終了
+  // --- 重力 (上昇中は A 押下/解放で分岐、下降中は GRAVITY) ---
+  // 上昇中 (velocity.y < 0) かつ ジャンプフェイズ中 (isJumping) かつ A 押下中 かつ
+  // 最大 hold 時間内: 弱重力。それ以外で上昇中: 強重力。下降中: 通常重力。
+  let gravityToApply: number
+  if (player.velocity.y < 0) {
+    const stillInHoldPhase =
+      player.isJumping &&
+      input.jumpHeld &&
+      player.jumpHoldMs < PLAYER.maxJumpHoldMs
+    if (stillInHoldPhase) {
+      gravityToApply = ASCENT_GRAVITY_HELD
+      player.jumpHoldMs += deltaMs
+    } else {
+      gravityToApply = ASCENT_GRAVITY_RELEASED
+      player.isJumping = false
+    }
+  } else {
+    gravityToApply = GRAVITY
     player.isJumping = false
   }
-
-  // --- 重力 ---
-  player.velocity.y += GRAVITY * dt
+  player.velocity.y += gravityToApply * dt
   if (player.velocity.y > PLAYER.maxFallSpeed) {
     player.velocity.y = PLAYER.maxFallSpeed
   }
+
+  // X 速度の絶対上限 (skid 中も含む)
+  player.velocity.x = clamp(
+    player.velocity.x,
+    -PLAYER.dashMaxSpeed,
+    PLAYER.dashMaxSpeed
+  )
 }
 
 /** velocity を反映した次フレームの位置を計算。衝突解決は別途。 */

@@ -14,6 +14,7 @@ export interface InputState {
   right: boolean
   jump: boolean
   jumpJustPressed: boolean
+  run: boolean
   back: boolean
 }
 
@@ -23,6 +24,7 @@ export class InputManager {
     right: false,
     jump: false,
     jumpJustPressed: false,
+    run: false,
     back: false,
   }
 
@@ -45,6 +47,11 @@ export class InputManager {
       case 'KeyW':
         this.state.jump = true
         break
+      case 'ShiftLeft':
+      case 'ShiftRight':
+      case 'KeyX':
+        this.state.run = true
+        break
       case 'Escape':
         this.state.back = true
         break
@@ -65,6 +72,11 @@ export class InputManager {
       case 'ArrowUp':
       case 'KeyW':
         this.state.jump = false
+        break
+      case 'ShiftLeft':
+      case 'ShiftRight':
+      case 'KeyX':
+        this.state.run = false
         break
       case 'Escape':
         this.state.back = false
