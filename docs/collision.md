@@ -39,6 +39,12 @@ overlap している rect があれば:
 - one-way platform (下から飛び乗れる床) は未対応
 - 斜面 (傾斜地形) は未対応
 
+## 関連モジュール
+
+- 入力する `rects: CollisionRect[]` は [`terrain.ts`](../src/game/terrain.ts) の `detectTerrain` が生成。[terrain.md](terrain.md) 参照
+- プレイヤー速度の更新は [`physics.ts`](../src/game/physics.ts) の `stepPlayerPhysics`。[physics.md](physics.md) 参照
+- 衝突解決結果の `isOnGround` を次フレームの `stepPlayerPhysics` に渡す呼び出しループは各 Scene の `update` で組まれている
+
 ## テスト
 
 `src/game/collision.test.ts` に 7 ケース (速度 0 でのめり込み既知挙動 / 角への斜め突入 を含む)。

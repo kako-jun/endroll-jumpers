@@ -81,6 +81,12 @@ if (!onGround && !isReversing) accel *= airControl // 同方向の空中加速�
 
 → 必要になったら別 Issue。
 
+## 関連モジュール
+
+- パラメータの実値は [`src/game/constants.ts`](../src/game/constants.ts) (PLAYER / GRAVITY / ASCENT_GRAVITY_HELD / ASCENT_GRAVITY_RELEASED)
+- 衝突解決後に `isOnGround` を `PlayerState` に戻す呼び出しは各 [Scene の update](scenes.md) で行う
+- 計測元データの正本: `freeza/tools/nes-analysis/dumps/mario3/SUMMARY.txt` (Mesen2 + Lua, 2026-05-13 計測)
+
 ## テスト
 
 `src/game/physics.test.ts` に 19 ケース (実測ジャンプ高度 2 件 + スキッド 30F 完全反転 1 件 + integratePosition 1 件を含む)。

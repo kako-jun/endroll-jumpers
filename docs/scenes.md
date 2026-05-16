@@ -30,6 +30,20 @@
 - カメラはプレイヤーを画面中央に保つように `world.y = -cameraY`、`cameraY = clamp(player.y - STAGE_HEIGHT/2, 0, WORLD_HEIGHT - STAGE_HEIGHT)`
 - 自動下スクロール: `player.position.y += ENDROLL.scrollSpeed * dt` (= 30 px/s)。ただしプラットフォームに着地しているときは衝突解決で押し戻されるので、止まっていれば実効速度はゼロ
 
+### クレジットの差し替え方
+
+`src/game/scenes/EndrollScene.ts` 冒頭の `CREDITS` 配列を編集する。各エントリは:
+
+```ts
+{ y: number, text: string, size: number }
+```
+
+- `y`: ワールド座標 (0 ~ WORLD_HEIGHT=2400)。上から下に並べる
+- `text`: 表示する文字列。1 行のみ (改行は分割エントリで)
+- `size`: フォントサイズ。サイズに応じて自動で色が決まる (≥32: 白 / ≥24: 薄灰 / それ未満: 中灰)。色を変えたければ `drawEndrollTerrain` の `fillBrightness` 分岐を編集
+
+地形は描画後の輝度から自動検出されるので、文字を増減すれば足場も自動で増減する。**実在の映画クレジットは著作権上 NG**、架空のクレジットのみを使う方針 (notes/dev/endroll-jumpers.md 参照)。
+
 ### 設計上の未消化点 (将来 Issue)
 
 notes/dev/endroll-jumpers.md のオリジナル仕様では「エンドロールは上から下へ**カメラが一定速度で**スクロール、上端に押し潰されたら死、下端に落ちたら死」という**スクロール強制スクリーンの設計**。本実装はカメラがプレイヤーを追従 + プレイヤー位置に弱い下押し力という妥協形で、止まっていればスクロールも止まる。

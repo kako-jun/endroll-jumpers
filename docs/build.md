@@ -25,5 +25,5 @@
 
 ## CI
 
-- Husky + lint-staged で pre-commit に ESLint + Prettier
-- GitHub Actions: `.github/workflows/deploy.yml` (main push で build → GitHub Pages デプロイ)。移植後の初回 push で実走確認する想定
+- Husky + lint-staged で pre-commit に ESLint + Prettier (対象 `src/**/*.ts`)。Husky が無効な環境では手動で `npm run lint && npm run format` を実行
+- GitHub Actions: `.github/workflows/deploy.yml` (main push で build → GitHub Pages デプロイ)。session446 で push 完了済みなので、Actions のログ (`gh run list -R kako-jun/endroll-jumpers`) で初回実行の成否を確認してから llll-ll サブドメインを設定

@@ -18,7 +18,9 @@
 
 各シーンの constructor で `app.input.attachTouchOverlay()` を呼ぶ。`destroyScene()` で `detachTouchOverlay()`。
 
-- 画面下 1/3 を横に 3 分割した透明 `Graphics` (`alpha 0.25`)
+- 画面下 120px を横に 3 分割した半透明 `Graphics` (`alpha 0.25`)
+- 色は左=青 (`0x4444aa`) / 中央=緑 (`0x44aa44`、ジャンプ) / 右=赤 (`0xaa4444`)。色覚配慮としては「ジャンプだけ別色」+「左右で色相を変える」程度の最低限。色だけでなく位置で判別できるよう左右ボタンは画面端に配置
+- 幅は誤差を中央 (jump) に寄せて左右対称 (`STAGE_WIDTH=800` なら 266 / 268 / 266)
 
 ### モバイル制約
 

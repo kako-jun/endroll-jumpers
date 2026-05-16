@@ -33,6 +33,11 @@ detectTerrain(imageData, {
 - アンチエイリアスを切ると検出される矩形数が大幅に減る (Canvas は描画前に `imageSmoothingEnabled = false` を検討)
 - スクリーンショットや手書きスキャンも入力可能 (`brightness` ベースなので色相は影響しない)
 
+## 関連モジュール
+
+- 戻り値の `CollisionRect[]` は [`collision.ts`](../src/game/collision.ts) の `resolveCollisions` がそのまま読む。AABB 衝突判定のアルゴリズムは [collision.md](collision.md) 参照
+- 呼び出し例は [`scenes/PlatformScene.ts`](../src/game/scenes/PlatformScene.ts) / [`scenes/EndrollScene.ts`](../src/game/scenes/EndrollScene.ts) の constructor 内 (canvas → ImageData → detectTerrain)
+
 ## テスト
 
 `src/game/terrain.test.ts` に 7 ケース。

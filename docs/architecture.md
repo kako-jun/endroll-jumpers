@@ -2,25 +2,29 @@
 
 PixiJS v8 + TypeScript + Vite。React や Phaser には依存しない。
 
+## ハードウェア / ブラウザ前提
+
+- WebGL2 (PixiJS v8 で WebGPU が使えれば自動切替、未対応環境では WebGL にフォールバック)
+- Canvas2D は地形画像生成 (Sprite 化前) にだけ使用
+- モバイル WebView も対象 (Safari iOS 14+ / Chrome Android 90+ 程度)
+- 60fps 前提だが `App.ts` で `ticker.deltaMS` を 33ms (30fps 相当) で頭打ち → 低 FPS でもすり抜けが起きにくい
+
 ## ディレクトリ構成
 
-```
-src/
-├── main.ts                 # PIXI.Application の初期化、Loading 表示の差し替え
-└── game/
-    ├── App.ts              # SceneManager。Menu ⇄ Platform ⇄ Endroll の遷移
-    ├── Scene.ts            # PIXI.Container 継承の基底 (update / exit / destroyScene)
-    ├── constants.ts        # STAGE_WIDTH/HEIGHT, GRAVITY, PLAYER, TERRAIN, ENDROLL
-    ├── types.ts            # GameState / PlayerState / CameraState の型 + createInitialState
-    ├── input.ts            # InputManager (キーボード + タッチ overlay)
-    ├── physics.ts          # stepPlayerPhysics + integratePosition (純関数)
-    ├── terrain.ts          # detectTerrain: ImageData → CollisionRect[]
-    ├── collision.ts        # resolveCollisions: AABB (X→Y 分離)
-    └── scenes/
-        ├── MenuScene.ts      # モード選択
-        ├── PlatformScene.ts  # 固定画面モード
-        └── EndrollScene.ts   # 縦スクロールモード
-```
+| パス                                                                      | 役割                                                                      |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [`src/main.ts`](../src/main.ts)                                           | PIXI.Application の初期化、Loading 表示の差し替え                         |
+| [`src/game/App.ts`](../src/game/App.ts)                                   | SceneManager。Menu ⇄ Platform ⇄ Endroll の遷移 + `isTransitioning` ガード |
+| [`src/game/Scene.ts`](../src/game/Scene.ts)                               | PIXI.Container 継承の基底 (update / exit / destroyScene)                  |
+| [`src/game/constants.ts`](../src/game/constants.ts)                       | STAGE_WIDTH/HEIGHT, GRAVITY, PLAYER, TERRAIN, ENDROLL 等の定数            |
+| [`src/game/types.ts`](../src/game/types.ts)                               | GameState / PlayerState / CameraState 型 + createInitialState             |
+| [`src/game/input.ts`](../src/game/input.ts)                               | InputManager (キーボード + タッチ overlay)。[input.md](input.md)          |
+| [`src/game/physics.ts`](../src/game/physics.ts)                           | stepPlayerPhysics + integratePosition (純関数)。[physics.md](physics.md)  |
+| [`src/game/terrain.ts`](../src/game/terrain.ts)                           | detectTerrain: ImageData → `CollisionRect[]`。[terrain.md](terrain.md)    |
+| [`src/game/collision.ts`](../src/game/collision.ts)                       | resolveCollisions: AABB (X→Y 分離)。[collision.md](collision.md)          |
+| [`src/game/scenes/MenuScene.ts`](../src/game/scenes/MenuScene.ts)         | モード選択。[scenes.md](scenes.md)                                        |
+| [`src/game/scenes/PlatformScene.ts`](../src/game/scenes/PlatformScene.ts) | 固定画面モード                                                            |
+| [`src/game/scenes/EndrollScene.ts`](../src/game/scenes/EndrollScene.ts)   | 縦スクロールモード                                                        |
 
 ## 各モジュールの責務
 
