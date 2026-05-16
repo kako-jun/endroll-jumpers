@@ -1,32 +1,33 @@
 # Endroll Jumpers 開発者向けドキュメント
 
-画像から地形を自動認識するプラットフォームアクションゲーム。Phaser 3 + React + TypeScript。
+画像から地形を自動認識するプラットフォームアクションゲーム。PixiJS v8 + TypeScript + Vite。
+
+旧 Phaser 版から PixiJS に移植中。旧コードは `reference/phaser-source/` に退避済み。
 
 ## コンセプト
 
 - 黒背景に明るい部分（白、灰色、文字など）を地形として検出
 - スタッフロール画像やスクリーンショットを地形として利用可能
-- スーパーマリオ1風の物理演算
+- スーパーマリオ3 風の物理演算（可変ジャンプ、空中制御、慣性）
 
 ## プロジェクト構造
 
 ```
 endroll-jumpers/
 ├── src/
-│   ├── main.tsx           # エントリーポイント
-│   ├── App.tsx            # Reactアプリ
-│   ├── components/
-│   │   └── PhaserGame.tsx # Phaser統合コンポーネント
+│   ├── main.ts                 # PixiJS Application 初期化
 │   └── game/
-│       ├── config.ts      # Phaser設定
-│       ├── scenes/
-│       │   ├── MenuScene.ts      # メニュー画面
-│       │   ├── PlatformScene.ts  # プラットフォームモード
-│       │   └── EndrollScene.ts   # エンドロールモード
-│       └── objects/
-│           └── Player.ts         # プレイヤー
-├── public/
-│   └── assets/            # ゲームアセット
+│       ├── App.ts              # SceneManager
+│       ├── Scene.ts            # シーン基底クラス
+│       ├── constants.ts        # ステージ / 物理 / 地形 の定数
+│       ├── input.ts            # キーボード + タッチ入力
+│       ├── types.ts            # GameState 型定義 + initWithState
+│       └── scenes/
+│           ├── MenuScene.ts      # モード選択
+│           ├── PlatformScene.ts  # 固定画面モード
+│           └── EndrollScene.ts   # 縦スクロールモード
+├── reference/
+│   └── phaser-source/          # 移植元の Phaser 版（#12 で削除）
 └── package.json
 ```
 
@@ -43,58 +44,21 @@ endroll-jumpers/
 - カメラがプレイヤーを追従
 - スタッフロール風テキストが地形として機能
 
-## 物理演算（スーパーマリオ1風）
+## 物理演算（スーパーマリオ3 風）
 
-### 可変ジャンプ
+`src/game/constants.ts` の `PLAYER` セクションでパラメータを集中管理:
 
-```typescript
-// ボタンを押し続けることでジャンプの高さを調整
-if (jumpButtonHeld && velocity.y < 0) {
-  velocity.y += additionalJumpForce
-}
-```
-
-### 空中制御
-
-```typescript
-// 空中での左右移動は地上より制御が効きにくい
-const airControl = 0.6
-if (!isGrounded) {
-  horizontalForce *= airControl
-}
-```
-
-### その他
-
-- 最大落下速度の制限
-- 摩擦による自然な減速
-- 慣性の実装
+- `acceleration` / `groundFriction` / `airFriction` — 慣性付きの左右移動
+- `jumpInitialVelocity` / `jumpHoldBoost` / `maxJumpHoldMs` — ボタン押し続けで高くなる可変ジャンプ
+- `airControl` — 空中での左右入力倍率
+- `maxFallSpeed` — 最大落下速度
 
 ## 画像ベース地形認識
 
-### アルゴリズム
-
 ```typescript
-function detectTerrain(imageData: ImageData): CollisionMap {
-  const { data, width, height } = imageData
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4
-      const r = data[i],
-        g = data[i + 1],
-        b = data[i + 2]
-
-      // 明るさベースの判定
-      const brightness = (r + g + b) / 3
-      if (brightness > threshold) {
-        // 地形として登録
-        collisionMap.add(x, y)
-      }
-    }
-  }
-
-  return collisionMap
+function detectTerrain(imageData: ImageData): CollisionRect[] {
+  // 各行を走査し、brightness >= TERRAIN.brightnessThreshold が
+  // TERRAIN.minWidth ピクセル以上連続する区間を矩形として登録
 }
 ```
 
@@ -105,23 +69,30 @@ function detectTerrain(imageData: ImageData): CollisionMap {
 - ブラウザのスクリーンショット
 - 手書きの図形
 
+## 入力管理（Issue #9）
+
+- キーボード: ← / → / Space / ↑ / WASD / Esc
+- タッチ: 画面下 1/3 を 3 分割した左 / ジャンプ / 右ボタン (透明オーバーレイ)
+- `InputManager.tick()` を毎フレーム呼ぶことで `jumpJustPressed` が計算される
+
 ## 技術スタック
 
-| パッケージ  | 用途           |
-| ----------- | -------------- |
-| react       | UI             |
-| phaser      | ゲームエンジン |
-| vite        | ビルドツール   |
-| typescript  | 型安全         |
-| tailwindcss | スタイリング   |
+| パッケージ | 用途                 |
+| ---------- | -------------------- |
+| pixi.js    | レンダリング (v8 系) |
+| vite       | ビルドツール         |
+| vitest     | テスト               |
+| typescript | 型安全               |
 
 ## ビルド
 
 ```bash
-npm run dev          # 開発サーバー
-npm run build        # プロダクションビルド
+npm run dev          # 開発サーバー (port 3000)
+npm run build        # tsc + vite build
 npm run preview      # ビルドプレビュー
 npm run lint         # ESLint
+npm run typecheck    # tsc --noEmit
+npm run test         # vitest run
 npm run format       # Prettier
 ```
 
