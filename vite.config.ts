@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 // 別途 vitest.config.ts を持つと server.open 等が watch モードに漏れる懸念があるため、
 // 設定ファイルを 1 つに寄せる方針。
 export default defineConfig({
-  base: '/endroll-jumpers/',
+  base: '/',
   server: {
     port: 3000,
     open: true,
