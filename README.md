@@ -33,6 +33,10 @@ npm run dev
 
 `http://localhost:3000/endroll-jumpers/` で開く。
 
+## 表示サイズ
+
+論理解像度は 800×600。canvas は CSS で拡大せず、`src/main.ts` の `renderer.resize()` と `stage.scale` で viewport に収まる実 canvas サイズへ合わせる。
+
 ## ライセンス
 
 MIT
