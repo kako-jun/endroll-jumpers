@@ -7,7 +7,13 @@
     <style>
       html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
       body { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-      canvas { display: block; }
+      canvas {
+        display: block;
+        /* 4:3 (800x600) を縦横独立に縮められて歪まないようアスペクト比固定 */
+        width: min(100vw, calc(100vh * 4 / 3));
+        height: min(100vh, calc(100vw * 3 / 4));
+        aspect-ratio: 4 / 3;
+      }
       #loading {
         position: fixed; inset: 0;
         display: flex; flex-direction: column; justify-content: center; align-items: center;
